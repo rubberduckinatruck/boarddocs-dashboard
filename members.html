@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Board Members – AFUHSD BoardDocs</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; }
+    table { width: 100%; margin-top: 2rem; border-collapse: collapse; }
+    th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
+    th { background-color: #f4f4f4; }
+  </style>
+</head>
+<body>
+
+  <!-- Shared Navigation -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <h1>Board Member Voting Patterns</h1>
+
+  <canvas id="voteBreakdownChart"></canvas>
+
+  <table id="voteTable">
+    <thead>
+      <tr>
+        <th>Board Member</th>
+        <th>Yes Votes</th>
+        <th>No Votes</th>
+        <th>Abstain Votes</th>
+        <th>Total Votes</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadVotes() {
+      const response = await fetch("boarddocs_agenda_items.json");
+      const items = await response.json();
+
+      const voteTally = {};
+
+      for (const item of items) {
+        const mv = item.motion_and_voting;
+        if (!mv) continue;
+
+        for (const field of ["yes_votes", "no_votes", "abstain_votes"]) {
+          if (!Array.isArray(mv[field])) continue;
+          for (const member of mv[field]) {
+            if (!voteTally[member]) {
+              voteTally[member] = { yes: 0, no: 0, abstain: 0 };
+            }
+            voteTally[member][field.split('_')[0]] += 1;
+          }
+        }
+      }
+
+      const members = Object.keys(voteTally).sort();
+      const yesCounts = members.map(m => voteTally[m].yes);
+      const noCounts = members.map(m => voteTally[m].no);
+      const abstainCounts = members.map(m => voteTally[m].abstain);
+
+      // Chart.js bar chart
+      const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: members,
+          datasets: [
+            {
+              label: "Yes Votes",
+              data: yesCounts,
+              backgroundColor: "#2ecc71"
+            },
+            {
+              label: "No Votes",
+              data: noCounts,
+              backgroundColor: "#e74c3c"
+            },
+            {
+              label: "Abstain Votes",
+              data: abstainCounts,
+              backgroundColor: "#f1c40f"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: "Board Member Voting Totals (All Agendas)"
+            },
+            legend: {
+              position: "top"
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "Vote Count"
+              }
+            }
+          }
+        }
+      });
+
+      // Populate table
+      const tbody = document.querySelector("#voteTable tbody");
+      members.forEach(member => {
+        const yes = voteTally[member].yes;
+        const no = voteTally[member].no;
+        const abstain = voteTally[member].abstain;
+        const total = yes + no + abstain;
+
+        const row = `
+          <tr>
+            <td>${member}</td>
+            <td>${yes}</td>
+            <td>${no}</td>
+            <td>${abstain}</td>
+            <td>${total}</td>
+          </tr>
+        `;
+        tbody.innerHTML += row;
+      });
+
+      // Activate DataTables
+      $('#voteTable').DataTable();
+    }
+
+    loadVotes();
+  </script>
+</body>
+</html>
