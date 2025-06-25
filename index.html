@@ -38,14 +38,16 @@
 
   <div id="filters">
     <label>Filter by Year:
-      <select id="yearFilter"></select>
+      <select id="yearFilter" multiple></select>
     </label>
     <label>Filter by Board Member:
-      <select id="memberFilter"></select>
+      <select id="memberFilter" multiple></select>
     </label>
      <label>Filter by Category:
-      <select id="categoryFilter"></select>
+       <select id="categoryFilter" multiple></select>
     </label>
+    <button id="clearFiltersBtn">Clear Filters</button>
+
   </div>
 
   <table id="agendaTable" class="display" width="100%">
