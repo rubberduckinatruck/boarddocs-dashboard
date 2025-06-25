@@ -1,0 +1,70 @@
+<!-- votes.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Voting Trends – AFUHSD BoardDocs</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h2 { margin-top: 2rem; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; }
+  </style>
+</head>
+<body>
+  <!-- Shared nav -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <h1>Voting Trends</h1>
+
+  <canvas id="yesNoChart"></canvas>
+
+  <script>
+    // Sample mock data until you connect to parsed JSON
+    const voteData = {
+      labels: ["Kristen Acton", "Eric Cultum", "Vickie Landis", "Corby Naylor", "Sarah Silk"],
+      datasets: [
+        {
+          label: "Yes Votes",
+          backgroundColor: "#2ecc71",
+          data: [105, 112, 118, 90, 122]
+        },
+        {
+          label: "No Votes",
+          backgroundColor: "#e74c3c",
+          data: [3, 5, 1, 7, 2]
+        },
+        {
+          label: "Abstain Votes",
+          backgroundColor: "#f1c40f",
+          data: [1, 0, 0, 2, 0]
+        }
+      ]
+    };
+
+    const ctx = document.getElementById("yesNoChart").getContext("2d");
+    new Chart(ctx, {
+      type: "bar",
+      data: voteData,
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Board Member Voting Summary"
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
