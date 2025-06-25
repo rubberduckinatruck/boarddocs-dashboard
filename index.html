@@ -15,7 +15,24 @@
   </style>
 </head>
 <body>
+<!-- Static site-wide title -->
   <h1>AFUHSD BoardDocs Dashboard</h1>
+  
+  <!-- Load navigation from nav.html -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <!-- Page Name Below -->
+
+  <h1>Charts & Stuff</h1>
+
+    <!-- Page Content Below -->
 
   <div id="filters">
     <label>Filter by Year:
