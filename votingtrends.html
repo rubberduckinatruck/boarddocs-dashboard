@@ -1,9 +1,9 @@
-<!-- votes.html -->
+<!-- VotingTrends.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Voting Trends – AFUHSD BoardDocs</title>
+  <title>AF BoardDocs Dash</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
@@ -26,45 +26,91 @@
 
   <h1>Voting Trends</h1>
 
+  <script>
+    document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+  </script>
+
+  <p><b>Purpose:</b> Track how often controversial items are split votes vs unanimous</p>
+  <p><b>Actionable Uses:</b><br>
+  Identify "swing" board members<br>
+  Flag when patterns shift after elections</p>
+
   <canvas id="yesNoChart"></canvas>
 
   <script>
-    // Sample mock data until you connect to parsed JSON
-    const voteData = {
-      labels: ["Kristen Acton", "Eric Cultum", "Vickie Landis", "Corby Naylor", "Sarah Silk"],
-      datasets: [
-        {
-          label: "Yes Votes",
-          backgroundColor: "#2ecc71",
-          data: [105, 112, 118, 90, 122]
-        },
-        {
-          label: "No Votes",
-          backgroundColor: "#e74c3c",
-          data: [3, 5, 1, 7, 2]
-        },
-        {
-          label: "Abstain Votes",
-          backgroundColor: "#f1c40f",
-          data: [1, 0, 0, 2, 0]
-        }
-      ]
-    };
+    fetch("boarddocs_agenda_items.json")
+      .then(response => response.json())
+      .then(data => {
+        const voteTally = {};
 
-    const ctx = document.getElementById("yesNoChart").getContext("2d");
-    new Chart(ctx, {
-      type: "bar",
-      data: voteData,
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: "Board Member Voting Summary"
+        data.forEach(item => {
+          const mv = item.motion_and_voting;
+          if (!mv) return;
+
+          const yes = mv.yes_votes || [];
+          const no = mv.no_votes || [];
+          const abstain = mv.abstain_votes || [];
+          const absent = mv.absent_votes || [];
+
+          [...yes, ...no, ...abstain, ...absent].forEach(name => {
+            if (!voteTally[name]) {
+              voteTally[name] = { yes: 0, no: 0, abstain: 0, absent: 0 };
+            }
+          });
+
+          yes.forEach(name => voteTally[name].yes++);
+          no.forEach(name => voteTally[name].no++);
+          abstain.forEach(name => voteTally[name].abstain++);
+          absent.forEach(name => voteTally[name].absent++);
+        });
+
+        const names = Object.keys(voteTally).sort();
+        const yesCounts = names.map(n => voteTally[n].yes);
+        const noCounts = names.map(n => voteTally[n].no);
+        const abstainCounts = names.map(n => voteTally[n].abstain);
+
+        const ctx = document.getElementById("yesNoChart").getContext("2d");
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: names,
+            datasets: [
+              {
+                label: "Yes Votes",
+                backgroundColor: "#2ecc71",
+                data: yesCounts
+              },
+              {
+                label: "No Votes",
+                backgroundColor: "#e74c3c",
+                data: noCounts
+              },
+              {
+                label: "Abstain Votes",
+                backgroundColor: "#f1c40f",
+                data: abstainCounts
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: "Board Member Voting Summary"
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false
+              }
+            }
           }
-        }
-      }
-    });
+        });
+      })
+      .catch(err => {
+        console.error("Error loading JSON:", err);
+        alert("Could not load vote data.");
+      });
   </script>
 </body>
 </html>
