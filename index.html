@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AFUHSD BoardDocs Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    #filters { margin-bottom: 1rem; }
+    canvas { max-width: 800px; margin: 2rem auto; display: block; }
+  </style>
+</head>
+<body>
+  <h1>AFUHSD BoardDocs Dashboard</h1>
+
+  <div id="filters">
+    <label>Filter by Year:
+      <select id="yearFilter"></select>
+    </label>
+    <label>Filter by Board Member:
+      <select id="memberFilter"></select>
+    </label>
+  </div>
+
+  <table id="agendaTable" class="display" width="100%">
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Date</th>
+        <th>Agenda #</th>
+        <th>Title</th>
+        <th>Category</th>
+        <th>Type</th>
+        <th>Recommended Action</th>
+        <th>Moved By</th>
+        <th>Seconded By</th>
+        <th>Vote</th>
+        <th>Yes</th>
+        <th>No</th>
+        <th>Abstain</th>
+        <th>Attachments</th>
+      </tr>
+    </thead>
+  </table>
+
+  <canvas id="voteChart"></canvas>
+
+  <script>
+    let table;
+
+    function populateFilters(data) {
+      const years = [...new Set(data.map(r => r.year))].sort();
+      const members = new Set();
+      data.forEach(row => {
+        row.yes_votes?.split(",").forEach(m => members.add(m.trim()));
+        row.no_votes?.split(",").forEach(m => members.add(m.trim()));
+        row.abstain_votes?.split(",").forEach(m => members.add(m.trim()));
+      });
+
+      for (const y of years) {
+        $('#yearFilter').append(`<option value="${y}">${y}</option>`);
+      }
+      for (const m of [...members].sort()) {
+        if (m) $('#memberFilter').append(`<option value="${m}">${m}</option>`);
+      }
+    }
+
+    function updateChart(data) {
+      const result = { Yes: 0, No: 0, Abstain: 0 };
+      data.forEach(row => {
+        if (row.yes_votes) result.Yes += row.yes_votes.split(',').filter(x => x).length;
+        if (row.no_votes) result.No += row.no_votes.split(',').filter(x => x).length;
+        if (row.abstain_votes) result.Abstain += row.abstain_votes.split(',').filter(x => x).length;
+      });
+      const ctx = document.getElementById('voteChart').getContext('2d');
+      if (window.voteChart) window.voteChart.destroy();
+      window.voteChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(result),
+          datasets: [{
+            label: 'Total Votes',
+            data: Object.values(result),
+          }]
+        }
+      });
+    }
+
+    fetch("boarddocs_agenda_items.json")
+      .then(res => res.json())
+      .then(data => {
+        populateFilters(data);
+        table = $('#agendaTable').DataTable({
+          data,
+          columns: [
+            { data: "year" },
+            { data: "meeting_date" },
+            { data: "agenda_number" },
+            { data: "title" },
+            { data: "category" },
+            { data: "type" },
+            { data: "recommended_action" },
+            { data: "moved_by" },
+            { data: "seconded_by" },
+            { data: "vote_result" },
+            { data: "yes_votes" },
+            { data: "no_votes" },
+            { data: "abstain_votes" },
+            { data: "attachment_links", render: d => {
+              if (!d) return '';
+              return d.split(';').map(a => {
+                const [name, url] = a.split('|');
+                return `<a href="${url}" target="_blank">${name}</a>`;
+              }).join(', ');
+            }}
+          ]
+        });
+        updateChart(data);
+
+        $('#yearFilter, #memberFilter').on('change', function () {
+          const y = $('#yearFilter').val();
+          const m = $('#memberFilter').val();
+          table.clear();
+          const filtered = data.filter(r =>
+            (!y || r.year === y) &&
+            (!m || [r.yes_votes, r.no_votes, r.abstain_votes].some(v => v?.includes(m)))
+          );
+          table.rows.add(filtered).draw();
+          updateChart(filtered);
+        });
+      });
+  </script>
+</body>
+</html>
