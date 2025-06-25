@@ -2,11 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Board Members – AFUHSD BoardDocs</title>
+  <title>AF BoardDocs Dash</title>
+
+  <!-- External Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+
+  <!-- Global Constants -->
+  <script>
+    const BOARD_DOCS_JSON = "boarddocs_agenda_items.json";
+    const VOTE_COLORS = {
+      yes: "#2ecc71",
+      no: "#e74c3c",
+      abstain: "#f1c40f"
+    };
+  </script>
+
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
@@ -29,6 +42,9 @@
   </script>
 
   <h1>Board Member Voting Patterns</h1>
+  <script>
+    document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+  </script>
 
   <canvas id="voteBreakdownChart"></canvas>
 
@@ -47,7 +63,7 @@
 
   <script>
     async function loadVotes() {
-      const response = await fetch("boarddocs_agenda_items.json");
+      const response = await fetch(BOARD_DOCS_JSON);
       const items = await response.json();
 
       const voteTally = {};
@@ -82,17 +98,17 @@
             {
               label: "Yes Votes",
               data: yesCounts,
-              backgroundColor: "#2ecc71"
+              backgroundColor: VOTE_COLORS.yes
             },
             {
               label: "No Votes",
               data: noCounts,
-              backgroundColor: "#e74c3c"
+              backgroundColor: VOTE_COLORS.no
             },
             {
               label: "Abstain Votes",
               data: abstainCounts,
-              backgroundColor: "#f1c40f"
+              backgroundColor: VOTE_COLORS.abstain
             }
           ]
         },
@@ -139,7 +155,6 @@
         tbody.innerHTML += row;
       });
 
-      // Activate DataTables
       $('#voteTable').DataTable();
     }
 
