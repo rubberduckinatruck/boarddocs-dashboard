@@ -77,7 +77,6 @@ const STOPWORDS = [
 ];
 
 const ADDITIONAL_PHRASES = [
-  // Add any custom key phrases you want to always track
   "equity", "student data", "union", "meet and confer", "privatization",
   "discipline", "budget", "grievance", "transparency", "calendar", "overtime",
   "class size", "contract", "override", "health", "safety", "reduction",
@@ -99,7 +98,6 @@ function extractText(item) {
 }
 
 function tokenize(text) {
-  // Remove punctuation, lower, split on spaces, filter stopwords, keep words >2 letters
   return text
     .replace(/[\u2019',."“”‘’\-\–:;!?()\[\]{}\/\\]/g, " ")
     .toLowerCase()
@@ -114,7 +112,6 @@ function tokenize(text) {
 
 function countWords(data, includeTags=true) {
   const freq = {};
-  // From all text fields
   data.forEach(item => {
     const words = tokenize(extractText(item));
     words.forEach(word => {
@@ -130,7 +127,6 @@ function countWords(data, includeTags=true) {
       });
     }
   });
-  // Custom phrases: count those separately by searching in raw text
   ADDITIONAL_PHRASES.forEach(phrase => {
     let phraseCount = 0;
     data.forEach(item => {
@@ -142,7 +138,6 @@ function countWords(data, includeTags=true) {
 }
 
 function updateWordCloud(freq) {
-  // Only show most frequent 80, filter out <=2
   const entries = Object.entries(freq)
     .filter(([word,count]) => count > 2)
     .sort((a,b) => b[1] - a[1])
@@ -170,7 +165,7 @@ function updateWordCloud(freq) {
 function updateTable(freq) {
   const sorted = Object.entries(freq)
     .sort((a,b) => b[1]-a[1])
-    .slice(0,50); // Top 50
+    .slice(0,50);
   const tableData = sorted.map(([word, count]) => [word, count]);
   if ($.fn.DataTable.isDataTable('#topicTable')) {
     $('#topicTable').DataTable().clear().rows.add(tableData).draw();
@@ -203,33 +198,38 @@ function filterByYear(data, year) {
   return data.filter(item => item.meeting_date && item.meeting_date.startsWith(year));
 }
 
-fetch("data/master_2013to2024_cleaned.json")
-  .then(res => res.json())
-  .then(data => {
-    allData = data;
-    populateYearFilter(allData);
+// --- Fetch and combine both files ---
+Promise.all([
+  fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
+  fetch("data/2025_combined.json").then(res => res.json())
+]).then(([data1, data2]) => {
+  // Combine arrays, ignoring if not array
+  const allData = Array.isArray(data1) && Array.isArray(data2)
+    ? [...data1, ...data2]
+    : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
+  // Main logic follows as before:
+  populateYearFilter(allData);
 
-    // Initial load
-    let showTags = $("#showTags").is(":checked");
-    filteredData = allData;
-    let freq = countWords(filteredData, showTags);
+  let showTags = $("#showTags").is(":checked");
+  let filteredData = allData;
+  let freq = countWords(filteredData, showTags);
+  updateWordCloud(freq);
+  updateTable(freq);
+
+  $("#yearFilter").on("change", function() {
+    const year = $(this).val();
+    filteredData = filterByYear(allData, year);
+    freq = countWords(filteredData, $("#showTags").is(":checked"));
     updateWordCloud(freq);
     updateTable(freq);
-
-    $("#yearFilter").on("change", function() {
-      const year = $(this).val();
-      filteredData = filterByYear(allData, year);
-      freq = countWords(filteredData, $("#showTags").is(":checked"));
-      updateWordCloud(freq);
-      updateTable(freq);
-    });
-
-    $("#showTags").on("change", function() {
-      freq = countWords(filteredData, $("#showTags").is(":checked"));
-      updateWordCloud(freq);
-      updateTable(freq);
-    });
   });
+
+  $("#showTags").on("change", function() {
+    freq = countWords(filteredData, $("#showTags").is(":checked"));
+    updateWordCloud(freq);
+    updateTable(freq);
+  });
+});
 
 </script>
 
