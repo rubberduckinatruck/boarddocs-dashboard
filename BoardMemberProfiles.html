@@ -75,20 +75,45 @@ async function loadAllMeetings(files) {
   return allMeetings;
 }
 
-// Tally votes by member name
-function tallyVotes(meetings) {
+// Improved tally: Only count Consent Agenda votes ONCE (on top-level motion)
+function tallyVotesNoConsentDupes(meetings) {
   const voteTally = {};
   meetings.forEach(meeting => {
+    let consentVoted = false;
     (meeting.agenda_items || []).forEach(item => {
+      const cat = item.category ? item.category.toLowerCase() : "";
+      const title = item.title ? item.title.toLowerCase() : "";
+      const isConsentTop = (
+        cat.includes("consent agenda") &&
+        title.includes("consideration of approval")
+      );
+      const isConsentSub = (
+        cat.includes("consent agenda") &&
+        !title.includes("consideration of approval")
+      );
       const mv = item.motion_and_voting || {};
       const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
-      votesArr.forEach(v => {
-        if (!v || !v.name || !v.vote) return;
-        if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
-        if (v.vote === "Yes") voteTally[v.name].yes++;
-        else if (v.vote === "No") voteTally[v.name].no++;
-        else if (v.vote === "Abstain") voteTally[v.name].abstain++;
-      });
+      if (isConsentTop) {
+        // Only count the Consent Agenda block once
+        votesArr.forEach(v => {
+          if (!v || !v.name || !v.vote) return;
+          if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+          if (v.vote === "Yes") voteTally[v.name].yes++;
+          else if (v.vote === "No") voteTally[v.name].no++;
+          else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+        });
+        consentVoted = true;
+      } else if (!isConsentSub) {
+        // Count non-consent agenda items as normal
+        votesArr.forEach(v => {
+          if (!v || !v.name || !v.vote) return;
+          if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+          if (v.vote === "Yes") voteTally[v.name].yes++;
+          else if (v.vote === "No") voteTally[v.name].no++;
+          else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+        });
+      }
+      // else: skip consent sub-items (their votes are already counted above)
     });
   });
   return voteTally;
@@ -96,7 +121,7 @@ function tallyVotes(meetings) {
 
 (async function() {
   const meetings = await loadAllMeetings(chunkedFiles);
-  const voteTally = tallyVotes(meetings);
+  const voteTally = tallyVotesNoConsentDupes(meetings);
 
   const members = Object.keys(voteTally).sort();
   const yesCounts = members.map(m => voteTally[m].yes);
