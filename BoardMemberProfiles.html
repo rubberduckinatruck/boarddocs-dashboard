@@ -2,24 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AF BoardDocs Dash</title>
-
-  <!-- External Libraries -->
+  <title>AF BoardDocs Dash – Board Member Profiles</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-
-  <!-- Global Constants -->
-  <script>
-    const BOARD_DOCS_JSON = "boarddocs_agenda_items.json";
-    const VOTE_COLORS = {
-      yes: "#2ecc71",
-      no: "#e74c3c",
-      abstain: "#f1c40f"
-    };
-  </script>
-
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
@@ -31,7 +18,6 @@
 </head>
 <body>
 
-  <!-- Shared Navigation -->
   <div id="nav-placeholder"></div>
   <script>
     fetch("nav.html")
@@ -46,11 +32,11 @@
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
 
-<p><b>Purpose:</b> View how each member votes over time</p>
+  <p><b>Purpose:</b> View how each member votes over time</p>
   <p><b>Actionable Uses:</b><br>
     Strengthen public testimony with member-specific data<br>
     Identify allies/opponents for advocacy efforts</p>
-  
+
   <canvas id="voteBreakdownChart"></canvas>
 
   <table id="voteTable">
@@ -66,104 +52,139 @@
     <tbody></tbody>
   </table>
 
-  <script>
-    async function loadVotes() {
-      const response = await fetch(BOARD_DOCS_JSON);
-      const items = await response.json();
+<script>
+const chunkedFiles = [
+  "data/master_2013_2017.json",
+  "data/master_2018_2020.json",
+  "data/master_2021_2024.json",
+  "data/2025_combined.json"
+];
 
-      const voteTally = {};
+async function loadAllMeetings(files) {
+  const allMeetings = [];
+  for (let file of files) {
+    try {
+      const resp = await fetch(file);
+      const json = await resp.json();
+      allMeetings.push(...json);
+    } catch (e) {
+      console.error("Failed to load", file, e);
+    }
+  }
+  return allMeetings;
+}
 
-      for (const item of items) {
-        const mv = item.motion_and_voting;
-        if (!mv) continue;
+function tallyVotes(meetings) {
+  const voteTally = {};
+  meetings.forEach(meeting => {
+    (meeting.agenda_items || []).forEach(item => {
+      const mv = item.motion_and_voting || {};
+      let yes = mv.yes_votes || [];
+      let no = mv.no_votes || [];
+      let abstain = mv.abstain_votes || [];
+      // Accept both array and comma-separated string
+      if (typeof yes === "string") yes = yes.split(",").map(s=>s.trim()).filter(Boolean);
+      if (typeof no === "string") no = no.split(",").map(s=>s.trim()).filter(Boolean);
+      if (typeof abstain === "string") abstain = abstain.split(",").map(s=>s.trim()).filter(Boolean);
 
-        for (const field of ["yes_votes", "no_votes", "abstain_votes"]) {
-          if (!Array.isArray(mv[field])) continue;
-          for (const member of mv[field]) {
-            if (!voteTally[member]) {
-              voteTally[member] = { yes: 0, no: 0, abstain: 0 };
-            }
-            voteTally[member][field.split('_')[0]] += 1;
+      yes.forEach(name => {
+        if (!name) return;
+        if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+        voteTally[name].yes++;
+      });
+      no.forEach(name => {
+        if (!name) return;
+        if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+        voteTally[name].no++;
+      });
+      abstain.forEach(name => {
+        if (!name) return;
+        if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+        voteTally[name].abstain++;
+      });
+    });
+  });
+  return voteTally;
+}
+
+(async function() {
+  const meetings = await loadAllMeetings(chunkedFiles);
+  const voteTally = tallyVotes(meetings);
+
+  const members = Object.keys(voteTally).sort();
+  const yesCounts = members.map(m => voteTally[m].yes);
+  const noCounts = members.map(m => voteTally[m].no);
+  const abstainCounts = members.map(m => voteTally[m].abstain);
+
+  // Chart.js bar chart
+  const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: members,
+      datasets: [
+        {
+          label: "Yes Votes",
+          data: yesCounts,
+          backgroundColor: "#2ecc71"
+        },
+        {
+          label: "No Votes",
+          data: noCounts,
+          backgroundColor: "#e74c3c"
+        },
+        {
+          label: "Abstain Votes",
+          data: abstainCounts,
+          backgroundColor: "#f1c40f"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: "Board Member Voting Totals (All Agendas)"
+        },
+        legend: {
+          position: "top"
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Vote Count"
           }
         }
       }
-
-      const members = Object.keys(voteTally).sort();
-      const yesCounts = members.map(m => voteTally[m].yes);
-      const noCounts = members.map(m => voteTally[m].no);
-      const abstainCounts = members.map(m => voteTally[m].abstain);
-
-      // Chart.js bar chart
-      const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: members,
-          datasets: [
-            {
-              label: "Yes Votes",
-              data: yesCounts,
-              backgroundColor: VOTE_COLORS.yes
-            },
-            {
-              label: "No Votes",
-              data: noCounts,
-              backgroundColor: VOTE_COLORS.no
-            },
-            {
-              label: "Abstain Votes",
-              data: abstainCounts,
-              backgroundColor: VOTE_COLORS.abstain
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            title: {
-              display: true,
-              text: "Board Member Voting Totals (All Agendas)"
-            },
-            legend: {
-              position: "top"
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: "Vote Count"
-              }
-            }
-          }
-        }
-      });
-
-      // Populate table
-      const tbody = document.querySelector("#voteTable tbody");
-      members.forEach(member => {
-        const yes = voteTally[member].yes;
-        const no = voteTally[member].no;
-        const abstain = voteTally[member].abstain;
-        const total = yes + no + abstain;
-
-        const row = `
-          <tr>
-            <td>${member}</td>
-            <td>${yes}</td>
-            <td>${no}</td>
-            <td>${abstain}</td>
-            <td>${total}</td>
-          </tr>
-        `;
-        tbody.innerHTML += row;
-      });
-
-      $('#voteTable').DataTable();
     }
+  });
 
-    loadVotes();
-  </script>
+  // Populate table
+  const tbody = document.querySelector("#voteTable tbody");
+  members.forEach(member => {
+    const yes = voteTally[member].yes;
+    const no = voteTally[member].no;
+    const abstain = voteTally[member].abstain;
+    const total = yes + no + abstain;
+    const row = `
+      <tr>
+        <td>${member}</td>
+        <td>${yes}</td>
+        <td>${no}</td>
+        <td>${abstain}</td>
+        <td>${total}</td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+
+  $('#voteTable').DataTable();
+})();
+</script>
+
 </body>
 </html>
