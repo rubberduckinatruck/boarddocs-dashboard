@@ -42,12 +42,11 @@
   <canvas id="yesNoChart"></canvas>
 
   <script>
-    const chunkedFiles = [
-      "data/master_2013_2017.json",
-      "data/master_2018_2020.json",
-      "data/master_2021_2024.json",
-      "data/2025_combined.json"
-    ];
+const chunkedFiles = [
+  "data/master_2013to2024_cleaned.json",
+  "data/2025_combined.json"
+];
+
 
     // Load and flatten all meetings data
     async function loadAllMeetings(files) {
