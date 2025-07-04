@@ -194,7 +194,6 @@ function updateBarChart(yearCounts, category) {
   });
 }
 
-// Show all items that include this category in their tags
 function updateTable(data, category) {
   const filtered = data.filter(item => {
     const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
@@ -203,7 +202,6 @@ function updateTable(data, category) {
   $("#categoryName").text(category);
   $("#tableTitle").toggle(filtered.length > 0);
 
-  // Set up footer filter fields if not present
   if ($('#categoryTable tfoot input').length === 0) {
     $('#categoryTable tfoot th').each(function() {
       $(this).html('<input type="text" placeholder="Search" />');
@@ -222,7 +220,6 @@ function updateTable(data, category) {
     ],
     order: [[0, "desc"]],
     initComplete: function () {
-      // Per-column filter
       this.api().columns().every(function () {
         var that = this;
         $('input', this.footer()).off().on('keyup change clear', function () {
@@ -235,39 +232,43 @@ function updateTable(data, category) {
   });
 }
 
-// MAIN DATA LOAD
-fetch("data/tagged_agenda_items.json")
-  .then(res => res.json())
-  .then(data => {
-    // Ensure every item has normalized categories
-    rawData = data.map(item => {
-      return { ...item, category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category) }
-    });
+// MAIN DATA LOAD: fetch and merge both files
+Promise.all([
+  fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
+  fetch("data/2025_combined.json").then(res => res.json())
+]).then(([data1, data2]) => {
+  // Merge arrays, ignore if not array
+  rawData = Array.isArray(data1) && Array.isArray(data2)
+    ? [...data1, ...data2]
+    : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
 
-    const catCounts = countCategories(rawData);
-    updatePieChart(catCounts);
-
-    // Populate category selector with all possible cleaned tags
-    const sortedCats = Object.keys(catCounts).sort();
-    for (const cat of sortedCats) {
-      $("#categorySelect").append(`<option value="${cat}">${cat}</option>`);
-    }
-
-    // Initial load: pick first real category
-    let initialCat = sortedCats[0];
-    $("#categorySelect").val(initialCat);
-
-    const yearCounts = countByYear(rawData, initialCat);
-    updateBarChart(yearCounts, initialCat);
-    updateTable(rawData, initialCat);
-
-    $("#categorySelect").on("change", function() {
-      const selectedCat = $(this).val();
-      const yrCounts = countByYear(rawData, selectedCat);
-      updateBarChart(yrCounts, selectedCat);
-      updateTable(rawData, selectedCat);
-    });
+  // Ensure every item has normalized categories
+  rawData = rawData.map(item => {
+    return { ...item, category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category) }
   });
+
+  const catCounts = countCategories(rawData);
+  updatePieChart(catCounts);
+
+  const sortedCats = Object.keys(catCounts).sort();
+  for (const cat of sortedCats) {
+    $("#categorySelect").append(`<option value="${cat}">${cat}</option>`);
+  }
+
+  let initialCat = sortedCats[0];
+  $("#categorySelect").val(initialCat);
+
+  const yearCounts = countByYear(rawData, initialCat);
+  updateBarChart(yearCounts, initialCat);
+  updateTable(rawData, initialCat);
+
+  $("#categorySelect").on("change", function() {
+    const selectedCat = $(this).val();
+    const yrCounts = countByYear(rawData, selectedCat);
+    updateBarChart(yrCounts, selectedCat);
+    updateTable(rawData, selectedCat);
+  });
+});
 </script>
 
 </body>
