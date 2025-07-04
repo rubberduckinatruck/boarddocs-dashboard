@@ -16,7 +16,6 @@
 </head>
 <body>
  
-  <!-- Load navigation from nav.html -->
   <div id="nav-placeholder"></div>
   <script>
     fetch("nav.html")
@@ -26,15 +25,10 @@
       });
   </script>
 
-  <!-- Page Name Below -->
-<!-- Title Constant (syncs document title with page content) -->
-    <h1>Homepage</h1>
+  <h1>Homepage</h1>
   <script>
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
-
-
-    <!-- Page Content Below -->
 
   <div id="filters">
     <label>Filter by Year:
@@ -43,11 +37,10 @@
     <label>Filter by Board Member:
       <select id="memberFilter" multiple></select>
     </label>
-     <label>Filter by Category:
-       <select id="categoryFilter" multiple></select>
+    <label>Filter by Category:
+      <select id="categoryFilter" multiple></select>
     </label>
     <button id="clearFiltersBtn">Clear Filters</button>
-
   </div>
 
   <table id="agendaTable" class="display" width="100%">
@@ -62,7 +55,7 @@
         <th>Recommended Action</th>
         <th>Moved By</th>
         <th>Seconded By</th>
-        <th>Vote</th>
+        <th>Vote Result</th>
         <th>Yes</th>
         <th>No</th>
         <th>Abstain</th>
@@ -73,100 +66,172 @@
 
   <canvas id="voteChart"></canvas>
 
- <script>
-  let table;
+<script>
+const chunkedFiles = [
+  "data/master_2013_2017.json",
+  "data/master_2018_2020.json",
+  "data/master_2021_2024.json",
+  "data/2025_combined.json"
+];
 
-  function populateFilters(data) {
-    const years = [...new Set(data.map(r => r.year))].sort();
-    const members = new Set();
-    const categories = [...new Set(data.map(r => r.category).filter(Boolean))].sort();
+let allAgendaItems = [];
+let table;
 
-    data.forEach(row => {
-      row.yes_votes?.split(",").forEach(m => members.add(m.trim()));
-      row.no_votes?.split(",").forEach(m => members.add(m.trim()));
-      row.abstain_votes?.split(",").forEach(m => members.add(m.trim()));
-    });
-
-    for (const y of years) {
-      $('#yearFilter').append(`<option value="${y}">${y}</option>`);
-    }
-    for (const m of [...members].sort()) {
-      if (m) $('#memberFilter').append(`<option value="${m}">${m}</option>`);
-    }
-    for (const c of categories) {
-      $('#categoryFilter').append(`<option value="${c}">${c}</option>`);
+async function loadAllAgendaItems(files) {
+  const meetings = [];
+  for (let file of files) {
+    try {
+      const resp = await fetch(file);
+      const json = await resp.json();
+      meetings.push(...json);
+    } catch (e) {
+      console.error("Failed to load", file, e);
     }
   }
-
-  function updateChart(data) {
-    const result = { Yes: 0, No: 0, Abstain: 0 };
-    data.forEach(row => {
-      if (row.yes_votes) result.Yes += row.yes_votes.split(',').filter(x => x).length;
-      if (row.no_votes) result.No += row.no_votes.split(',').filter(x => x).length;
-      if (row.abstain_votes) result.Abstain += row.abstain_votes.split(',').filter(x => x).length;
-    });
-    const ctx = document.getElementById('voteChart').getContext('2d');
-    if (window.voteChart) window.voteChart.destroy();
-    window.voteChart = new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: Object.keys(result),
-        datasets: [{
-          label: 'Total Votes',
-          data: Object.values(result),
-        }]
+  // Flatten all agenda items
+  const items = [];
+  meetings.forEach(meeting => {
+    (meeting.agenda_items || []).forEach(item => {
+      // Compute Yes/No/Abstain counts per item from votes array (if present)
+      let yes = 0, no = 0, abstain = 0;
+      let moved_by = "", seconded_by = "";
+      let vote_result = "";
+      if (item.motion_and_voting) {
+        const mv = item.motion_and_voting;
+        vote_result = mv.vote_result || "";
+        moved_by = mv.moved_by || "";
+        seconded_by = mv.seconded_by || "";
+        if (Array.isArray(mv.votes)) {
+          mv.votes.forEach(v => {
+            if (!v || !v.vote) return;
+            if (v.vote === "Yes") yes++;
+            else if (v.vote === "No") no++;
+            else if (v.vote === "Abstain") abstain++;
+          });
+        }
       }
+      // Attachments rendering (optional: can join names/urls)
+      let attachment_links = "";
+      if (Array.isArray(item.attachments) && item.attachments.length) {
+        attachment_links = item.attachments.map(a =>
+          `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
+        ).join(", ");
+      }
+
+      items.push({
+        year: (meeting.meeting_date || "").slice(0, 4),
+        meeting_date: meeting.meeting_date,
+        agenda_number: item.number,
+        title: item.title,
+        category: item.category,
+        type: item.type,
+        recommended_action: item.recommendedAction,
+        moved_by: moved_by,
+        seconded_by: seconded_by,
+        vote_result: vote_result,
+        yes_votes: yes,
+        no_votes: no,
+        abstain_votes: abstain,
+        attachment_links: attachment_links
+      });
     });
+  });
+  return items;
+}
+
+function populateFilters(data) {
+  const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort();
+  const members = new Set();
+  const categories = [...new Set(data.map(r => r.category).filter(Boolean))].sort();
+
+  // For member filter, you'd need to flatten all votes per item and get unique names:
+  data.forEach(row => {
+    // No per-member list in table, so skip for now unless you want to add it
+  });
+
+  for (const y of years) {
+    $('#yearFilter').append(`<option value="${y}">${y}</option>`);
   }
+  // Remove member filter if not used, or keep blank
+  // for (const m of [...members].sort()) {
+  //   if (m) $('#memberFilter').append(`<option value="${m}">${m}</option>`);
+  // }
+  for (const c of categories) {
+    $('#categoryFilter').append(`<option value="${c}">${c}</option>`);
+  }
+}
 
-  fetch("boarddocs_agenda_items.json")
-    .then(res => res.json())
-    .then(data => {
-      populateFilters(data);
-      table = $('#agendaTable').DataTable({
-        data,
-        columns: [
-          { data: "year" },
-          { data: "meeting_date" },
-          { data: "agenda_number" },
-          { data: "title" },
-          { data: "category" },
-          { data: "type" },
-          { data: "recommended_action" },
-          { data: "moved_by" },
-          { data: "seconded_by" },
-          { data: "vote_result" },
-          { data: "yes_votes" },
-          { data: "no_votes" },
-          { data: "abstain_votes" },
-          {
-            data: "attachment_links", render: d => {
-              if (!d) return '';
-              return d.split(';').map(a => {
-                const [name, url] = a.split('|');
-                return `<a href="${url}" target="_blank">${name}</a>`;
-              }).join(', ');
-            }
-          }
-        ]
-      });
-      updateChart(data);
+function updateChart(data) {
+  const result = { Yes: 0, No: 0, Abstain: 0 };
+  data.forEach(row => {
+    result.Yes += Number(row.yes_votes) || 0;
+    result.No += Number(row.no_votes) || 0;
+    result.Abstain += Number(row.abstain_votes) || 0;
+  });
+  const ctx = document.getElementById('voteChart').getContext('2d');
+  if (window.voteChart) window.voteChart.destroy();
+  window.voteChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: Object.keys(result),
+      datasets: [{
+        label: 'Total Votes',
+        data: Object.values(result),
+      }]
+    }
+  });
+}
 
-      $('#yearFilter, #memberFilter, #categoryFilter').on('change', function () {
-        const y = $('#yearFilter').val();
-        const m = $('#memberFilter').val();
-        const c = $('#categoryFilter').val();
+(async function(){
+  allAgendaItems = await loadAllAgendaItems(chunkedFiles);
+  populateFilters(allAgendaItems);
 
-        const filtered = data.filter(r =>
-          (!y || r.year === y) &&
-          (!m || [r.yes_votes, r.no_votes, r.abstain_votes].some(v => v?.includes(m))) &&
-          (!c || r.category === c)
-        );
+  table = $('#agendaTable').DataTable({
+    data: allAgendaItems,
+    columns: [
+      { data: "year" },
+      { data: "meeting_date" },
+      { data: "agenda_number" },
+      { data: "title" },
+      { data: "category" },
+      { data: "type" },
+      { data: "recommended_action" },
+      { data: "moved_by" },
+      { data: "seconded_by" },
+      { data: "vote_result" },
+      { data: "yes_votes" },
+      { data: "no_votes" },
+      { data: "abstain_votes" },
+      { data: "attachment_links" }
+    ]
+  });
 
-        table.clear().rows.add(filtered).draw();
-        updateChart(filtered);
-      });
-    });
+  updateChart(allAgendaItems);
+
+  // Filters
+  $('#yearFilter, #categoryFilter').on('change', function () {
+    const y = $('#yearFilter').val();
+    // const m = $('#memberFilter').val(); // Remove if not used
+    const c = $('#categoryFilter').val();
+
+    const filtered = allAgendaItems.filter(r =>
+      (!y || y.includes(r.year)) &&
+      (!c || c.includes(r.category))
+    );
+
+    table.clear().rows.add(filtered).draw();
+    updateChart(filtered);
+  });
+
+  // Clear filters button
+  $('#clearFiltersBtn').on('click', function() {
+    $('#yearFilter').val([]);
+    // $('#memberFilter').val([]);
+    $('#categoryFilter').val([]);
+    table.clear().rows.add(allAgendaItems).draw();
+    updateChart(allAgendaItems);
+  });
+})();
 </script>
 
 </body>
