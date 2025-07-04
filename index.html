@@ -9,47 +9,48 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <style>
     body { font-family: sans-serif; margin: 2rem; }
-    h1 { font-size: 2rem; margin-bottom: 1rem; }
-    #filters { margin-bottom: 1.5em; }
-    #filters label {
-      display: inline-block;
-      margin-right: 1.5em;
-      vertical-align: top;
-    }
+    h1 { font-size: 1.2rem; margin-bottom: 1rem; }
+    #filters { margin-bottom: 1.5em; font-size: 0.97rem; }
+    #filters label { display: inline-block; margin-right: 1.5em; vertical-align: top; }
     select[multiple] {
       min-width: 170px;
       min-height: 7em;
       background: #fafcff;
       border: 1px solid #ddd;
-      font-size: 1rem;
+      font-size: 0.95rem;
       margin-right: 1em;
       margin-bottom: 0.6em;
     }
+    table, #agendaTable { font-size: 0.95rem; }
     canvas {
       height: 100% !important;
       max-width: 100%;
       display: block;
       margin: 2rem auto;
     }
-    .truncate-cell {
+    .truncate-cell, .attachments-cell {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
+      max-width: 250px;
       cursor: pointer;
       transition: all 0.15s;
     }
-    tr.expanded .truncate-cell {
+    tr.expanded .truncate-cell,
+    tr.expanded .attachments-cell {
       white-space: normal !important;
       overflow: visible !important;
       text-overflow: initial !important;
-      max-width: 900px !important;
+      max-width: 600px !important;
       word-break: break-word;
       background: #f8f8f8;
       z-index: 2;
       position: relative;
     }
     tr.expanded { background: #fafafa !important; }
+    .attachments-cell { color: #0073b1; text-decoration: underline; }
+    .attachments-list { display: none; margin: 0.4em 0 0 0; padding: 0; }
+    tr.expanded .attachments-list { display: block; }
   </style>
 </head>
 <body>
@@ -176,11 +177,12 @@ async function loadAllAgendaItems(files) {
           });
         }
       }
-      let attachment_links = "";
+      // Clean up attachment links for collapsible UX
+      let attachmentArray = [];
       if (Array.isArray(item.attachments) && item.attachments.length) {
-        attachment_links = item.attachments.map(a =>
+        attachmentArray = item.attachments.map(a =>
           `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
-        ).join(", ");
+        );
       }
       const normCats = normalizeCategories(item.category);
       items.push({
@@ -197,16 +199,18 @@ async function loadAllAgendaItems(files) {
         yes_votes: yes,
         no_votes: no,
         abstain_votes: abstain,
-        attachment_links: attachment_links
+        attachment_links: attachmentArray
       });
     });
   });
   return items;
 }
 
-// --- POPULATE FILTER SELECTS ---
+// --- POPULATE FILTER SELECTS (descending year order) ---
 function populateFilters(data) {
-  const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort();
+  const years = [...new Set(data.map(r => r.year))]
+    .filter(Boolean)
+    .sort((a, b) => b.localeCompare(a)); // descending order
   const categories = [...new Set(
     data.flatMap(r => Array.isArray(r.category) ? r.category : [r.category])
   )].filter(Boolean).sort();
@@ -237,6 +241,7 @@ function updateChart(data) {
       datasets: [{
         label: 'Total Votes',
         data: Object.values(result),
+        backgroundColor: ['#2ecc71', '#e74c3c', '#f1c40f']
       }]
     },
     options: {
@@ -255,6 +260,7 @@ function updateChart(data) {
 
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
+    order: [[0, 'desc']], // Year descending by default
     columns: [
       { data: "year" },
       { data: "meeting_date" },
@@ -281,9 +287,24 @@ function updateChart(data) {
       { data: "yes_votes" },
       { data: "no_votes" },
       { data: "abstain_votes" },
-      { data: "attachment_links" }
+      {
+        data: "attachment_links",
+        orderable: false,
+        render: function (data, type, row, meta) {
+          if (!data || !data.length) return "";
+          if (type === 'display') {
+            return `<div class="attachments-cell" title="Click row to expand/collapse">Show Attachments <span style="font-size:1em">📎</span>
+              <div class="attachments-list">${data.map(a => `<div>${a}</div>`).join("")}</div>
+            </div>`;
+          }
+          // for type === 'sort', return a simple string
+          return data.length + " attachment" + (data.length === 1 ? "" : "s");
+        }
+      }
     ]
   });
+
+  updateChart(allAgendaItems);
 
   // --- DataTables instant filtering for Year/Category ---
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
@@ -312,10 +333,10 @@ function updateChart(data) {
     table.draw();
   });
 
-  // Row expand/collapse for recommended_action
+  // Row expand/collapse for recommended_action and attachments
   $('#agendaTable tbody').on('click', 'td', function () {
-    var tr = $(this).closest('tr');
-    tr.toggleClass('expanded');
+    var $tr = $(this).closest('tr');
+    $tr.toggleClass('expanded');
   });
 
   // Initial chart update on visible data
