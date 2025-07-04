@@ -68,10 +68,12 @@ const STOPWORDS = [
   "activity","personnel","reports","special","services","donations","gifts","hearing",
   "study","agenda","meeting","session","sessions","report","presented","board",
   "school","district","agua","fria","minutes","voting","motion","second","action",
-  "purpose","recommendation","additional","notes","workload", // (if you don't want workload as a hot topic)
+  "purpose","recommendation","additional","notes","workload",
   // Years and numbers
   "2014","2015","2016","2017","2018","2019","2020","2021","2022","2023","2024",
-  "i","ii","iii","iv","v","vi","vii","viii","ix","x"
+  "i","ii","iii","iv","v","vi","vii","viii","ix","x",
+  // Custom Exclusions - always lower-case
+  "governing","consent","students","public","high","information","education","arizona"
 ];
 
 const ADDITIONAL_PHRASES = [
@@ -102,7 +104,12 @@ function tokenize(text) {
     .replace(/[\u2019',."“”‘’\-\–:;!?()\[\]{}\/\\]/g, " ")
     .toLowerCase()
     .split(/\s+/)
-    .filter(w => w && w.length > 2 && !STOPWORDS.includes(w));
+    .filter(w =>
+      w &&
+      w.length > 2 &&
+      !STOPWORDS.includes(w) &&
+      !/^\d{4}$/.test(w) // exclude all 4-digit numbers (years)
+    );
 }
 
 function countWords(data, includeTags=true) {
@@ -116,7 +123,10 @@ function countWords(data, includeTags=true) {
     // Include tags as "words" if desired
     if (includeTags && Array.isArray(item.union_impact_tags)) {
       item.union_impact_tags.forEach(tag => {
-        freq[tag] = (freq[tag] || 0) + 1;
+        const t = tag.toLowerCase();
+        if (!STOPWORDS.includes(t)) {
+          freq[t] = (freq[t] || 0) + 1;
+        }
       });
     }
   });
@@ -124,7 +134,7 @@ function countWords(data, includeTags=true) {
   ADDITIONAL_PHRASES.forEach(phrase => {
     let phraseCount = 0;
     data.forEach(item => {
-      if (extractText(item).toLowerCase().includes(phrase)) phraseCount++;
+      if (extractText(item).toLowerCase().includes(phrase.toLowerCase())) phraseCount++;
     });
     if (phraseCount > 0) freq[phrase] = phraseCount;
   });
@@ -132,10 +142,16 @@ function countWords(data, includeTags=true) {
 }
 
 function updateWordCloud(freq) {
+  // Only show most frequent 80, filter out <=2
   const entries = Object.entries(freq)
     .filter(([word,count]) => count > 2)
     .sort((a,b) => b[1] - a[1])
     .slice(0,80);
+
+  if (!entries.length) {
+    document.getElementById("wordCloud").innerHTML = "<div style='text-align:center;color:#999;padding:3em'>No data found for selection.</div>";
+    return;
+  }
   const wordList = entries.map(e => [e[0], e[1]]);
   document.getElementById("wordCloud").innerHTML = "";
   WordCloud(document.getElementById("wordCloud"), {
@@ -155,25 +171,28 @@ function updateTable(freq) {
   const sorted = Object.entries(freq)
     .sort((a,b) => b[1]-a[1])
     .slice(0,50); // Top 50
+  const tableData = sorted.map(([word, count]) => [word, count]);
   if ($.fn.DataTable.isDataTable('#topicTable')) {
-    $('#topicTable').DataTable().clear().rows.add(sorted).draw();
+    $('#topicTable').DataTable().clear().rows.add(tableData).draw();
   } else {
     $('#topicTable').DataTable({
-      data: sorted,
+      data: tableData,
       columns: [
         { title: "Word/Phrase" },
         { title: "Frequency" }
       ],
       paging: false,
       searching: false,
-      info: false
+      info: false,
+      order: [[1, 'desc']]
     });
   }
 }
 
 function populateYearFilter(data) {
   const years = Array.from(new Set(data.map(item => (item.meeting_date||"").slice(0,4))))
-    .filter(y=>y).sort();
+    .filter(y=>y && /^\d{4}$/.test(y))
+    .sort();
   for (const y of years) {
     $('#yearFilter').append(`<option value="${y}">${y}</option>`);
   }
