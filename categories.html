@@ -79,7 +79,7 @@
   </table>
 
 <script>
-// Strict normalization with typo/variant handling
+// --- Strict normalization with typo/variant handling (unchanged) ---
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
@@ -108,7 +108,7 @@ function normalizeCategories(cat) {
   return [...new Set(tags)];
 }
 
-let rawData = [];
+// --- Chart and Table Utilities ---
 let pieChart, barChart, table;
 
 function countCategories(data) {
@@ -215,7 +215,7 @@ function updateTable(data, category) {
       { data: "meeting_date" },
       { data: "title" },
       { data: "type" },
-      { data: "union_impact_tags", render: tags => tags && tags.length ? tags.join(", ") : "" },
+      { data: "tags", render: tags => tags && tags.length ? tags.join(", ") : "" },
       { data: "red_flag", render: f => f ? "🚩" : "" }
     ],
     order: [[0, "desc"]],
@@ -232,22 +232,34 @@ function updateTable(data, category) {
   });
 }
 
-// MAIN DATA LOAD: fetch and merge both files
+// MAIN DATA LOAD: fetch and merge both files, flatten agenda_items
 Promise.all([
   fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
   fetch("data/2025_cleaned.json").then(res => res.json())
 ]).then(([data1, data2]) => {
-  // Merge arrays, ignore if not array
-  rawData = Array.isArray(data1) && Array.isArray(data2)
+  // Merge all meetings into one array
+  let meetings = Array.isArray(data1) && Array.isArray(data2)
     ? [...data1, ...data2]
     : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
 
-  // Ensure every item has normalized categories
-  rawData = rawData.map(item => {
-    return { ...item, category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category) }
-  });
+  // Flatten all agenda_items from all meetings into one array, with meeting_date attached
+  let allAgendaItems = [];
+  for (const meeting of meetings) {
+    if (Array.isArray(meeting.agenda_items)) {
+      for (const item of meeting.agenda_items) {
+        // Attach meeting_date (and other meeting metadata if you want)
+        allAgendaItems.push({ ...item, meeting_date: meeting.meeting_date });
+      }
+    }
+  }
 
-  const catCounts = countCategories(rawData);
+  // Ensure categories normalized for all items
+  allAgendaItems = allAgendaItems.map(item => ({
+    ...item,
+    category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category)
+  }));
+
+  const catCounts = countCategories(allAgendaItems);
   updatePieChart(catCounts);
 
   const sortedCats = Object.keys(catCounts).sort();
@@ -258,18 +270,17 @@ Promise.all([
   let initialCat = sortedCats[0];
   $("#categorySelect").val(initialCat);
 
-  const yearCounts = countByYear(rawData, initialCat);
+  const yearCounts = countByYear(allAgendaItems, initialCat);
   updateBarChart(yearCounts, initialCat);
-  updateTable(rawData, initialCat);
+  updateTable(allAgendaItems, initialCat);
 
   $("#categorySelect").on("change", function() {
     const selectedCat = $(this).val();
-    const yrCounts = countByYear(rawData, selectedCat);
+    const yrCounts = countByYear(allAgendaItems, selectedCat);
     updateBarChart(yrCounts, selectedCat);
-    updateTable(rawData, selectedCat);
+    updateTable(allAgendaItems, selectedCat);
   });
 });
 </script>
-
 </body>
 </html>
