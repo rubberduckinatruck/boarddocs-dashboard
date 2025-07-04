@@ -57,6 +57,7 @@
     <label>Filter by Category:
       <select id="categoryFilter" multiple></select>
     </label>
+    <button id="applyFiltersBtn">Filter</button>
     <button id="clearFiltersBtn">Clear Filters</button>
   </div>
 
@@ -91,30 +92,35 @@ const chunkedFiles = [
   "data/2025_combined.json"
 ];
 
-// Multi-category normalization function
+// Strict category normalization with typo/variant handling
 function normalizeCategories(cat) {
-  if (!cat) return [];
+  if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
+
+  const map = [
+    { tag: "Call to Order", regex: /call to order/ },
+    { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
+    { tag: "Information", regex: /information|discussion|presentation|informational/ },
+    { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
+    { tag: "Call to the Public", regex: /call to the public|public comments?/ },
+    { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
+    { tag: "Action Items", regex: /action items?/ },
+    { tag: "Consent Agenda Items", regex: /consent agenda/ },
+    { tag: "Future Agenda Items", regex: /future agenda/ },
+    { tag: "Return to Regular Session", regex: /return to regular session|reconvene|resturn to regular session|reconvene regular board meeting|reconvene meeting|reconvene the regular board meeting|reconvene to regular session/ },
+    { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
+    { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
+    { tag: "Public Hearing", regex: /public hearing/ },
+    { tag: "Recognitions", regex: /recognitions?/ },
+    { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
+    { tag: "Board Advisory Committee", regex: /advisory committee/ }
+  ];
+
   const tags = [];
-  if (cat.match(/call to order/)) tags.push("Call to Order");
-  if (cat.match(/approval of minutes|meeting minutes|minutes/)) tags.push("Approval of Minutes");
-  if (cat.match(/action item/)) tags.push("Action Items");
-  if (cat.match(/executive session/)) tags.push("Executive Session");
-  if (cat.match(/consent agenda/)) tags.push("Consent Agenda");
-  if (cat.match(/presentations?/)) tags.push("Presentations");
-  if (cat.match(/recognitions?/)) tags.push("Recognitions");
-  if (cat.match(/future agenda items?/)) tags.push("Future Agenda Items");
-  if (cat.match(/adjournment|adjourn executive session/)) tags.push("Adjournment");
-  if (cat.match(/information|discussion/)) tags.push("Information/Discussion");
-  if (cat.match(/call to the public|call to public/)) tags.push("Call to the Public");
-  if (cat.match(/public hearing/)) tags.push("Public Hearing");
-  if (cat.match(/pledge of allegiance/)) tags.push("Pledge of Allegiance");
-  if (cat.match(/return to regular session/)) tags.push("Return to Regular Session");
-  if (cat.match(/work study|study session/)) tags.push("Study Session");
-  // Add more as needed...
-  // Fallback: push the original, title-cased (if no tags matched)
-  if (tags.length === 0 && cat)
-    tags.push(cat.replace(/\b\w/g, l => l.toUpperCase()));
+  for (let m of map) {
+    if (cat.match(m.regex)) tags.push(m.tag);
+  }
+  if (tags.length === 0) tags.push("Other");
   return [...new Set(tags)];
 }
 
@@ -136,7 +142,6 @@ async function loadAllAgendaItems(files) {
   const items = [];
   meetings.forEach(meeting => {
     (meeting.agenda_items || []).forEach(item => {
-      // Compute Yes/No/Abstain counts per item from votes array (if present)
       let yes = 0, no = 0, abstain = 0;
       let moved_by = "", seconded_by = "";
       let vote_result = "";
@@ -154,16 +159,13 @@ async function loadAllAgendaItems(files) {
           });
         }
       }
-      // Attachments rendering (optional: can join names/urls)
       let attachment_links = "";
       if (Array.isArray(item.attachments) && item.attachments.length) {
         attachment_links = item.attachments.map(a =>
           `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
         ).join(", ");
       }
-      // Multi-category tagging
       const normCats = normalizeCategories(item.category);
-
       items.push({
         year: (meeting.meeting_date || "").slice(0, 4),
         meeting_date: meeting.meeting_date,
@@ -256,16 +258,14 @@ function updateChart(data) {
 
   updateChart(allAgendaItems);
 
-  // Filters
-  $('#yearFilter, #categoryFilter').on('change', function () {
+  // Only filter when button is clicked
+  $('#applyFiltersBtn').on('click', function () {
     const y = $('#yearFilter').val();
     const c = $('#categoryFilter').val();
-
     const filtered = allAgendaItems.filter(r =>
       (!y || y.includes(r.year)) &&
       (!c || (r.category || []).some(cat => c.includes(cat)))
     );
-
     table.clear().rows.add(filtered).draw();
     updateChart(filtered);
   });
@@ -278,9 +278,10 @@ function updateChart(data) {
     updateChart(allAgendaItems);
   });
 
-  // Row expand/collapse for recommended_action
-  $('#agendaTable tbody').on('click', 'tr', function () {
-    $(this).toggleClass('expanded');
+  // Row expand/collapse for recommended_action (robust for DataTables redraw)
+  $('#agendaTable tbody').on('click', 'td', function () {
+    var tr = $(this).closest('tr');
+    tr.toggleClass('expanded');
   });
 })();
 </script>
