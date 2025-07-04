@@ -10,7 +10,7 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
-    canvas { max-width: 1000px; margin: 2rem auto; display: block; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
     table { width: 100%; margin-top: 2rem; border-collapse: collapse; }
     th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
     th { background-color: #f4f4f4; }
@@ -60,6 +60,7 @@ const chunkedFiles = [
   "data/2025_combined.json"
 ];
 
+// Load and flatten all meetings data
 async function loadAllMeetings(files) {
   const allMeetings = [];
   for (let file of files) {
@@ -74,6 +75,7 @@ async function loadAllMeetings(files) {
   return allMeetings;
 }
 
+// Tally votes by member name
 function tallyVotes(meetings) {
   const voteTally = {};
   meetings.forEach(meeting => {
@@ -81,7 +83,7 @@ function tallyVotes(meetings) {
       const mv = item.motion_and_voting || {};
       const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
       votesArr.forEach(v => {
-        if (!v || !v.name) return;
+        if (!v || !v.name || !v.vote) return;
         if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
         if (v.vote === "Yes") voteTally[v.name].yes++;
         else if (v.vote === "No") voteTally[v.name].no++;
@@ -101,9 +103,10 @@ function tallyVotes(meetings) {
   const noCounts = members.map(m => voteTally[m].no);
   const abstainCounts = members.map(m => voteTally[m].abstain);
 
-  // Chart.js bar chart
+  // Chart.js bar chart (destroy old if present)
+  if (window.voteProfileChart) window.voteProfileChart.destroy();
   const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
-  new Chart(ctx, {
+  window.voteProfileChart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: members,
@@ -148,26 +151,33 @@ function tallyVotes(meetings) {
     }
   });
 
-  // Populate table
-  const tbody = document.querySelector("#voteTable tbody");
-  members.forEach(member => {
+  // Build table data as array
+  const tableData = members.map(member => {
     const yes = voteTally[member].yes;
     const no = voteTally[member].no;
     const abstain = voteTally[member].abstain;
     const total = yes + no + abstain;
-    const row = `
-      <tr>
-        <td>${member}</td>
-        <td>${yes}</td>
-        <td>${no}</td>
-        <td>${abstain}</td>
-        <td>${total}</td>
-      </tr>
-    `;
-    tbody.innerHTML += row;
+    return [member, yes, no, abstain, total];
   });
 
-  $('#voteTable').DataTable();
+  // Destroy old DataTable if present, then update or create fresh
+  if ($.fn.DataTable.isDataTable('#voteTable')) {
+    $('#voteTable').DataTable().clear().rows.add(tableData).draw();
+  } else {
+    $('#voteTable').DataTable({
+      data: tableData,
+      columns: [
+        { title: "Board Member" },
+        { title: "Yes Votes" },
+        { title: "No Votes" },
+        { title: "Abstain Votes" },
+        { title: "Total Votes" }
+      ],
+      paging: false,
+      searching: false,
+      info: false
+    });
+  }
 })();
 </script>
 
