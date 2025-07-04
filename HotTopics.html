@@ -84,8 +84,6 @@ const ADDITIONAL_PHRASES = [
 ];
 
 // --------- DATA LOAD & PROCESS ---------
-let allData = [], filteredData = [];
-
 function extractText(item) {
   let out = [];
   for (const f of ["title","category","subject","recommendedAction"]) {
@@ -198,27 +196,34 @@ function filterByYear(data, year) {
   return data.filter(item => item.meeting_date && item.meeting_date.startsWith(year));
 }
 
-// --- Fetch and combine both files ---
+// --- Fetch and combine both files, flatten agenda_items ---
 Promise.all([
   fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
   fetch("data/2025_cleaned.json").then(res => res.json())
 ]).then(([data1, data2]) => {
-  // Combine arrays, ignoring if not array
-  const allData = Array.isArray(data1) && Array.isArray(data2)
+  // Flatten agenda_items from all meetings, carry meeting_date
+  let allAgendaItems = [];
+  const meetings = Array.isArray(data1) && Array.isArray(data2)
     ? [...data1, ...data2]
     : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
-  // Main logic follows as before:
-  populateYearFilter(allData);
+  for (const meeting of meetings) {
+    if (Array.isArray(meeting.agenda_items)) {
+      for (const item of meeting.agenda_items) {
+        allAgendaItems.push({ ...item, meeting_date: meeting.meeting_date });
+      }
+    }
+  }
+  populateYearFilter(allAgendaItems);
 
   let showTags = $("#showTags").is(":checked");
-  let filteredData = allData;
+  let filteredData = allAgendaItems;
   let freq = countWords(filteredData, showTags);
   updateWordCloud(freq);
   updateTable(freq);
 
   $("#yearFilter").on("change", function() {
     const year = $(this).val();
-    filteredData = filterByYear(allData, year);
+    filteredData = filterByYear(allAgendaItems, year);
     freq = countWords(filteredData, $("#showTags").is(":checked"));
     updateWordCloud(freq);
     updateTable(freq);
@@ -232,6 +237,5 @@ Promise.all([
 });
 
 </script>
-
 </body>
 </html>
