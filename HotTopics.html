@@ -1,10 +1,212 @@
-keywords.html – Policy Language Explorer
-Purpose: Pull common phrases or tagged topics from item descriptions/narratives
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Hot Topics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.1.2/src/wordcloud2.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    #wordCloud { width: 100%; height: 340px; border: 1px solid #ccc; margin: 2rem 0 1rem 0; }
+    #topicTable { width: 100%; margin-top: 2rem; }
+    .filters { margin: 1.5rem 0; }
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
 
-Visuals: Word cloud, frequency list
+  <h1>Hot Topics / Language Trends</h1>
+  <p>
+    <b>Purpose:</b> Pull common phrases or tagged topics from item descriptions/narratives<br>
+    <b>Actionable Uses:</b><br>
+    Track how often terms like “equity,” “student data,” or “union” appear<br>
+    Spot trends in board framing/language across the years
+  </p>
 
-Actionable Uses:
+  <div class="filters">
+    <label for="yearFilter"><b>Filter by Year:</b></label>
+    <select id="yearFilter"><option value="">All Years</option></select>
+    &nbsp;&nbsp;
+    <label><input type="checkbox" id="showTags" checked> Include Tagged Topics</label>
+  </div>
 
-Track how often terms like “equity,” “student data,” or “union” appear
+  <div id="wordCloud"></div>
 
-Spot trends in board framing/language across the years
+  <h3>Top Terms/Phrases</h3>
+  <table id="topicTable" class="display">
+    <thead>
+      <tr>
+        <th>Word/Phrase</th>
+        <th>Frequency</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+// --------- CONFIG ---------
+const STOPWORDS = [
+  "the","of","to","and","a","in","for","on","at","is","by","be","as","are",
+  "with","this","or","an","it","from","that","will","has","not","all","was",
+  "but","may","have","if","each","shall","per","can","who","any","no","our",
+  "which","their","more","do","due","meeting","agenda","item","board","school",
+  "district","governing","report","student","students","staff","high","school",
+  "education","public","provide","provided","present","presented","time","meeting",
+  "action","actions","information","year","years","purpose","recommendation","recommend",
+  "policy","policies","motion","voting","session","minutes","additional","notes"
+];
+
+const ADDITIONAL_PHRASES = [
+  // Add any custom key phrases you want to always track
+  "equity", "student data", "union", "meet and confer", "privatization",
+  "discipline", "budget", "grievance", "transparency", "calendar", "overtime",
+  "class size", "contract", "override", "health", "safety", "reduction",
+  "termination", "RIF", "compensation", "benefits"
+];
+
+// --------- DATA LOAD & PROCESS ---------
+let allData = [], filteredData = [];
+
+function extractText(item) {
+  let out = [];
+  for (const f of ["title","category","subject","recommendedAction"]) {
+    if(item[f]) out.push(item[f]);
+  }
+  if (item.narratives && typeof item.narratives === "object") {
+    out = out.concat(Object.values(item.narratives));
+  }
+  return out.join(" ");
+}
+
+function tokenize(text) {
+  // Remove punctuation, lower, split on spaces, filter stopwords, keep words >2 letters
+  return text
+    .replace(/[\u2019',."“”‘’\-\–:;!?()\[\]{}\/\\]/g, " ")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w && w.length > 2 && !STOPWORDS.includes(w));
+}
+
+function countWords(data, includeTags=true) {
+  const freq = {};
+  // From all text fields
+  data.forEach(item => {
+    const words = tokenize(extractText(item));
+    words.forEach(word => {
+      freq[word] = (freq[word] || 0) + 1;
+    });
+    // Include tags as "words" if desired
+    if (includeTags && Array.isArray(item.union_impact_tags)) {
+      item.union_impact_tags.forEach(tag => {
+        freq[tag] = (freq[tag] || 0) + 1;
+      });
+    }
+  });
+  // Custom phrases: count those separately by searching in raw text
+  ADDITIONAL_PHRASES.forEach(phrase => {
+    let phraseCount = 0;
+    data.forEach(item => {
+      if (extractText(item).toLowerCase().includes(phrase)) phraseCount++;
+    });
+    if (phraseCount > 0) freq[phrase] = phraseCount;
+  });
+  return freq;
+}
+
+function updateWordCloud(freq) {
+  const entries = Object.entries(freq)
+    .filter(([word,count]) => count > 2)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0,80);
+  const wordList = entries.map(e => [e[0], e[1]]);
+  document.getElementById("wordCloud").innerHTML = "";
+  WordCloud(document.getElementById("wordCloud"), {
+    list: wordList,
+    gridSize: 12,
+    weightFactor: 14,
+    minSize: 12,
+    fontFamily: "Arial",
+    color: "random-dark",
+    rotateRatio: 0.25,
+    backgroundColor: "#fff",
+    drawOutOfBound: false
+  });
+}
+
+function updateTable(freq) {
+  const sorted = Object.entries(freq)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,50); // Top 50
+  if ($.fn.DataTable.isDataTable('#topicTable')) {
+    $('#topicTable').DataTable().clear().rows.add(sorted).draw();
+  } else {
+    $('#topicTable').DataTable({
+      data: sorted,
+      columns: [
+        { title: "Word/Phrase" },
+        { title: "Frequency" }
+      ],
+      paging: false,
+      searching: false,
+      info: false
+    });
+  }
+}
+
+function populateYearFilter(data) {
+  const years = Array.from(new Set(data.map(item => (item.meeting_date||"").slice(0,4))))
+    .filter(y=>y).sort();
+  for (const y of years) {
+    $('#yearFilter').append(`<option value="${y}">${y}</option>`);
+  }
+}
+
+function filterByYear(data, year) {
+  if (!year) return data;
+  return data.filter(item => item.meeting_date && item.meeting_date.startsWith(year));
+}
+
+fetch("data/tagged_agenda_items.json")
+  .then(res => res.json())
+  .then(data => {
+    allData = data;
+    populateYearFilter(allData);
+
+    // Initial load
+    let showTags = $("#showTags").is(":checked");
+    filteredData = allData;
+    let freq = countWords(filteredData, showTags);
+    updateWordCloud(freq);
+    updateTable(freq);
+
+    $("#yearFilter").on("change", function() {
+      const year = $(this).val();
+      filteredData = filterByYear(allData, year);
+      freq = countWords(filteredData, $("#showTags").is(":checked"));
+      updateWordCloud(freq);
+      updateTable(freq);
+    });
+
+    $("#showTags").on("change", function() {
+      freq = countWords(filteredData, $("#showTags").is(":checked"));
+      updateWordCloud(freq);
+      updateTable(freq);
+    });
+  });
+
+</script>
+
+</body>
+</html>
