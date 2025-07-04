@@ -1,0 +1,61 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+$basePath = "C:\Users\gturnbull\Desktop\AGENDA_BoardDocs\RawData"
+$outDir = "C:\Users\gturnbull\Desktop\AGENDA_BoardDocs\Combined"
+if (!(Test-Path $outDir)) {
+    New-Item -Path $outDir -ItemType Directory | Out-Null
+}
+Write-Host "🔍 Scanning for year folders in $basePath..."
+
+$yearFolders = Get-ChildItem -Path $basePath -Directory | Where-Object { $_.Name -match '^\d{4}$' } | Sort-Object Name
+
+if ($yearFolders.Count -eq 0) {
+    Write-Warning "❌ No year folders found!"
+    exit 1
+}
+
+Write-Host "Found $($yearFolders.Count) year folders: " ($yearFolders.Name -join ", ")
+
+foreach ($folder in $yearFolders) {
+    $year = $folder.Name
+    $folderPath = $folder.FullName
+    $jsonFiles = Get-ChildItem -Path $folderPath -Filter "*.json" | Sort-Object Name
+
+    if ($jsonFiles.Count -eq 0) {
+        Write-Warning "⚠️  No JSON files found in $folderPath. Skipping."
+        continue
+    }
+
+    Write-Host "`n📅 YEAR: $year - $($jsonFiles.Count) JSON files"
+    $combined = @()
+    $fileIndex = 0
+
+    foreach ($file in $jsonFiles) {
+        $fileIndex++
+        $progress = [int](($fileIndex / $jsonFiles.Count) * 100)
+        Write-Progress -Activity "Processing $year" -Status "[$fileIndex/$($jsonFiles.Count)] $($file.Name)" -PercentComplete $progress
+
+        try {
+            $jsonContent = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+            if ($jsonContent -is [System.Collections.IEnumerable] -and -not ($jsonContent -is [string])) {
+                $combined += $jsonContent
+            } else {
+                $combined += @($jsonContent)
+            }
+            Write-Host "[✔] Added: $($file.Name) ($fileIndex of $($jsonFiles.Count))"
+        } catch {
+            Write-Warning "[!] Error reading $($file.Name): $_"
+        }
+    }
+
+    Write-Host "Total objects to save: $($combined.Count)"
+    $outFile = Join-Path $outDir "${year}_combined.json"
+    try {
+        $combined | ConvertTo-Json -Depth 20 -Compress | Set-Content -Path $outFile -Encoding UTF8
+        Write-Host "✅ Saved $($combined.Count) meetings to $outFile"
+    } catch {
+        Write-Warning "[!] Error writing combined file for ${year}: $_"
+    }
+}
+
+Write-Host "`n🎉 All years processed."

@@ -1,0 +1,64 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+$basePath = "C:\Users\gturnbull\Desktop\AGENDA_BoardDocs\RawData"
+$combinedPath = "C:\Users\gturnbull\Desktop\AGENDA_BoardDocs\Combined"
+
+if (!(Test-Path $combinedPath)) {
+    New-Item -Path $combinedPath -ItemType Directory | Out-Null
+    Write-Host "Created output directory: $combinedPath"
+}
+
+$archiveYears = 2013..2024 | ForEach-Object { "$_" }
+
+function Combine-Year-Files {
+    param(
+        [string]$YearFolder,
+        [string]$YearName
+    )
+    $folderPath = Join-Path $basePath $YearFolder
+    $jsonFiles = Get-ChildItem -Path $folderPath -Filter "*.json" | Sort-Object Name
+    $combined = @()
+    $fileIndex = 0
+
+    foreach ($file in $jsonFiles) {
+        $fileIndex++
+        $progress = [int](($fileIndex / $jsonFiles.Count) * 100)
+        Write-Progress -Activity "Processing $YearName" -Status "[$fileIndex/$($jsonFiles.Count)] $($file.Name)" -PercentComplete $progress
+        try {
+            $jsonContent = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+            if ($jsonContent -is [System.Collections.IEnumerable] -and -not ($jsonContent -is [string])) {
+                $combined += $jsonContent
+            } else {
+                $combined += @($jsonContent)
+            }
+            Write-Host "[✔] Added: $($file.Name) ($fileIndex of $($jsonFiles.Count))"
+        } catch {
+            Write-Warning "[!] Error reading $($file.Name): $_"
+        }
+    }
+    return $combined
+}
+
+# ARCHIVE: 2013-2024 ONLY
+Write-Host "`n🗂️  Combining archive years (2013-2024)..."
+$archiveCombined = @()
+foreach ($year in $archiveYears) {
+    $yearFolder = Join-Path $basePath $year
+    if (Test-Path $yearFolder) {
+        Write-Host "`n  📅 YEAR: $year"
+        $meetings = Combine-Year-Files -YearFolder $year -YearName $year
+        $archiveCombined += $meetings
+        Write-Host "  [✓] $($meetings.Count) meetings added from $year"
+    } else {
+        Write-Warning "  [!] Folder missing for year $year -- skipping."
+    }
+}
+$archiveOut = Join-Path $combinedPath "master_2013_2024.json"
+try {
+    $archiveCombined | ConvertTo-Json -Depth 20 | Set-Content -Path $archiveOut -Encoding UTF8
+    Write-Host "`n✅ Archive file created: $archiveOut ($($archiveCombined.Count) meetings)"
+} catch {
+    Write-Warning "[!] Error writing archive file: $_"
+}
+
+Write-Host "`n🎉 Done! Archive file is in $combinedPath"
