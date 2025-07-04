@@ -1,1 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Financials</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    .chart-container {
+      max-width: 700px;
+      margin: 2rem auto;
+      height: 360px;
+    }
+    canvas {
+      height: 100% !important;
+      max-width: 100%;
+      display: block;
+    }
+    #categorySelect { font-size: 1rem; padding: 0.3rem 1rem; }
+    #categoryTable { width: 100%; margin-top: 2rem; }
+    tfoot input { width: 98%; padding: 2px; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
 
+  <h1>Placeholder</h1>
+</body></html>
