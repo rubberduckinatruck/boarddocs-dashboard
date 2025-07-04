@@ -35,7 +35,6 @@
   <canvas id="yesNoChart"></canvas>
 
   <script>
-    // List all your chunked source files here
     const chunkedFiles = [
       "data/master_2013_2017.json",
       "data/master_2018_2020.json",
@@ -57,35 +56,18 @@
       return allMeetings;
     }
 
-    function getVoteTallyFromMeetings(meetings) {
+    function tallyVotesFromVotesArray(meetings) {
       const voteTally = {};
       meetings.forEach(meeting => {
         (meeting.agenda_items || []).forEach(item => {
           const mv = item.motion_and_voting || {};
-          if (!mv) return;
-          // Accept both array or string
-          let yes = mv.yes_votes || [];
-          let no = mv.no_votes || [];
-          let abstain = mv.abstain_votes || [];
-          // Convert comma strings to arrays if needed
-          if (typeof yes === "string") yes = yes.split(",").map(s=>s.trim()).filter(Boolean);
-          if (typeof no === "string") no = no.split(",").map(s=>s.trim()).filter(Boolean);
-          if (typeof abstain === "string") abstain = abstain.split(",").map(s=>s.trim()).filter(Boolean);
-
-          yes.forEach(name => {
-            if (!name) return;
-            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
-            voteTally[name].yes++;
-          });
-          no.forEach(name => {
-            if (!name) return;
-            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
-            voteTally[name].no++;
-          });
-          abstain.forEach(name => {
-            if (!name) return;
-            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
-            voteTally[name].abstain++;
+          const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+          votesArr.forEach(v => {
+            if (!v || !v.name) return;
+            if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+            if (v.vote === "Yes") voteTally[v.name].yes++;
+            else if (v.vote === "No") voteTally[v.name].no++;
+            else if (v.vote === "Abstain") voteTally[v.name].abstain++;
           });
         });
       });
@@ -94,7 +76,7 @@
 
     (async function() {
       const meetings = await loadAllMeetings(chunkedFiles);
-      const voteTally = getVoteTallyFromMeetings(meetings);
+      const voteTally = tallyVotesFromVotesArray(meetings);
 
       const names = Object.keys(voteTally).sort();
       const yesCounts = names.map(n => voteTally[n].yes);
