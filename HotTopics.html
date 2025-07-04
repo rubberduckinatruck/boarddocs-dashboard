@@ -203,7 +203,7 @@ function filterByYear(data, year) {
   return data.filter(item => item.meeting_date && item.meeting_date.startsWith(year));
 }
 
-fetch("data/tagged_agenda_items.json")
+fetch("data/master_2013to2024_cleaned.json")
   .then(res => res.json())
   .then(data => {
     allData = data;
