@@ -1,12 +1,10 @@
-<!-- VotingTrends.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AF BoardDocs Dash</title>
+  <title>AF BoardDocs Dash – Voting Trends</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h2 { margin-top: 2rem; }
@@ -25,7 +23,6 @@
   </script>
 
   <h1>Voting Trends</h1>
-
   <script>
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
@@ -38,79 +35,118 @@
   <canvas id="yesNoChart"></canvas>
 
   <script>
-    fetch("boarddocs_agenda_items.json")
-      .then(response => response.json())
-      .then(data => {
-        const voteTally = {};
+    // List all your chunked source files here
+    const chunkedFiles = [
+      "data/master_2013_2017.json",
+      "data/master_2018_2020.json",
+      "data/master_2021_2024.json",
+      "data/2025_combined.json"
+    ];
 
-        data.forEach(item => {
-          const mv = item.motion_and_voting;
+    async function loadAllMeetings(files) {
+      const allMeetings = [];
+      for (let file of files) {
+        try {
+          const resp = await fetch(file);
+          const json = await resp.json();
+          allMeetings.push(...json);
+        } catch (e) {
+          console.error("Failed to load", file, e);
+        }
+      }
+      return allMeetings;
+    }
+
+    function getVoteTallyFromMeetings(meetings) {
+      const voteTally = {};
+      meetings.forEach(meeting => {
+        (meeting.agenda_items || []).forEach(item => {
+          const mv = item.motion_and_voting || {};
           if (!mv) return;
+          // Accept both array or string
+          let yes = mv.yes_votes || [];
+          let no = mv.no_votes || [];
+          let abstain = mv.abstain_votes || [];
+          // Convert comma strings to arrays if needed
+          if (typeof yes === "string") yes = yes.split(",").map(s=>s.trim()).filter(Boolean);
+          if (typeof no === "string") no = no.split(",").map(s=>s.trim()).filter(Boolean);
+          if (typeof abstain === "string") abstain = abstain.split(",").map(s=>s.trim()).filter(Boolean);
 
-          const yes = mv.yes_votes || [];
-          const no = mv.no_votes || [];
-          const abstain = mv.abstain_votes || [];
-          const absent = mv.absent_votes || [];
-
-          [...yes, ...no, ...abstain, ...absent].forEach(name => {
-            if (!voteTally[name]) {
-              voteTally[name] = { yes: 0, no: 0, abstain: 0, absent: 0 };
-            }
+          yes.forEach(name => {
+            if (!name) return;
+            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+            voteTally[name].yes++;
           });
-
-          yes.forEach(name => voteTally[name].yes++);
-          no.forEach(name => voteTally[name].no++);
-          abstain.forEach(name => voteTally[name].abstain++);
-          absent.forEach(name => voteTally[name].absent++);
+          no.forEach(name => {
+            if (!name) return;
+            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+            voteTally[name].no++;
+          });
+          abstain.forEach(name => {
+            if (!name) return;
+            if (!voteTally[name]) voteTally[name] = { yes: 0, no: 0, abstain: 0 };
+            voteTally[name].abstain++;
+          });
         });
+      });
+      return voteTally;
+    }
 
-        const names = Object.keys(voteTally).sort();
-        const yesCounts = names.map(n => voteTally[n].yes);
-        const noCounts = names.map(n => voteTally[n].no);
-        const abstainCounts = names.map(n => voteTally[n].abstain);
+    (async function() {
+      const meetings = await loadAllMeetings(chunkedFiles);
+      const voteTally = getVoteTallyFromMeetings(meetings);
 
-        const ctx = document.getElementById("yesNoChart").getContext("2d");
-        new Chart(ctx, {
-          type: "bar",
-          data: {
-            labels: names,
-            datasets: [
-              {
-                label: "Yes Votes",
-                backgroundColor: "#2ecc71",
-                data: yesCounts
-              },
-              {
-                label: "No Votes",
-                backgroundColor: "#e74c3c",
-                data: noCounts
-              },
-              {
-                label: "Abstain Votes",
-                backgroundColor: "#f1c40f",
-                data: abstainCounts
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              title: {
-                display: true,
-                text: "Board Member Voting Summary"
-              },
-              tooltip: {
-                mode: 'index',
-                intersect: false
-              }
+      const names = Object.keys(voteTally).sort();
+      const yesCounts = names.map(n => voteTally[n].yes);
+      const noCounts = names.map(n => voteTally[n].no);
+      const abstainCounts = names.map(n => voteTally[n].abstain);
+
+      if (names.length === 0) {
+        document.getElementById("yesNoChart").style.display = "none";
+        const msg = document.createElement("div");
+        msg.innerHTML = "<b>No voting data available.</b>";
+        document.body.appendChild(msg);
+        return;
+      }
+
+      const ctx = document.getElementById("yesNoChart").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: names,
+          datasets: [
+            {
+              label: "Yes Votes",
+              backgroundColor: "#2ecc71",
+              data: yesCounts
+            },
+            {
+              label: "No Votes",
+              backgroundColor: "#e74c3c",
+              data: noCounts
+            },
+            {
+              label: "Abstain Votes",
+              backgroundColor: "#f1c40f",
+              data: abstainCounts
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: "Board Member Voting Summary"
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false
             }
           }
-        });
-      })
-      .catch(err => {
-        console.error("Error loading JSON:", err);
-        alert("Could not load vote data.");
+        }
       });
+    })();
   </script>
 </body>
 </html>
