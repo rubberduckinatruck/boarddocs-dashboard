@@ -10,6 +10,8 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
+    a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
+a.member-link:hover { color:#1976d2; }
     #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
     #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
     #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
@@ -213,13 +215,15 @@ function renderTableAndChart(members) {
     const no = voteTally[member.name]?.no || 0;
     const abstain = voteTally[member.name]?.abstain || 0;
     const total = yes + no + abstain;
-    const star = isCurrentMember(member)
-      ? '<span class="current-star" title="Current Board Member">★</span>'
-      : '';
-    return [
-      `${member.name} ${star}`,
-      yes, no, abstain, total
-    ];
+    const nameLink = `<a href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>`;
+const star = isCurrentMember(member)
+  ? '<span class="current-star" title="Current Board Member">★</span>'
+  : '';
+return [
+  `${nameLink} ${star}`,
+  yes, no, abstain, total
+];
+
   });
 
   // DataTable with or without reset
