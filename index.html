@@ -53,7 +53,7 @@
   </style>
 </head>
 <body>
- 
+
   <div id="nav-placeholder"></div>
   <script>
     fetch("nav.html")
@@ -103,6 +103,7 @@
   <canvas id="voteChart"></canvas>
 
 <script>
+// --- CONFIG ---
 const chunkedFiles = [
   "data/master_2013_2017.json",
   "data/master_2018_2020.json",
@@ -110,7 +111,7 @@ const chunkedFiles = [
   "data/2025_combined.json"
 ];
 
-// Strict category normalization with typo/variant handling
+// --- CATEGORY NORMALIZATION ---
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
@@ -140,6 +141,7 @@ function normalizeCategories(cat) {
   return [...new Set(tags)];
 }
 
+// --- LOAD AND FLATTEN DATA ---
 let allAgendaItems = [];
 let table;
 
@@ -203,9 +205,13 @@ async function loadAllAgendaItems(files) {
   return items;
 }
 
+// --- POPULATE FILTER SELECTS ---
 function populateFilters(data) {
   const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort();
-  const categories = [...new Set(data.flatMap(r => r.category || []) )].filter(Boolean).sort();
+  // Always flatten categories; make sure they're single tags, not joined
+  const categories = [...new Set(
+    data.flatMap(r => Array.isArray(r.category) ? r.category : [r.category])
+  )].filter(Boolean).sort();
   $('#yearFilter').empty();
   $('#categoryFilter').empty();
   for (const y of years) {
@@ -216,6 +222,7 @@ function populateFilters(data) {
   }
 }
 
+// --- VOTE PIE CHART ---
 function updateChart(data) {
   const result = { Yes: 0, No: 0, Abstain: 0 };
   data.forEach(row => {
@@ -244,6 +251,7 @@ function updateChart(data) {
   });
 }
 
+// --- MAIN INIT ---
 (async function(){
   allAgendaItems = await loadAllAgendaItems(chunkedFiles);
   populateFilters(allAgendaItems);
@@ -282,25 +290,31 @@ function updateChart(data) {
 
   updateChart(allAgendaItems);
 
-  // Filter on button click
+  // --- FILTER HANDLERS ---
   $('#applyFiltersBtn').on('click', function () {
-    const y = $('#yearFilter').val() || [];
-    const c = $('#categoryFilter').val() || [];
+    // Get selected values and trim whitespace
+    const y = ($('#yearFilter').val() || []).map(s => s.trim());
+    const c = ($('#categoryFilter').val() || []).map(s => s.trim());
+    // Filter agenda items by year and by atomic category tags
     const filtered = allAgendaItems.filter(r =>
       (y.length === 0 || y.includes(r.year)) &&
-      (c.length === 0 || (r.category || []).some(cat => c.includes(cat)))
+      (c.length === 0 || (r.category || []).some(cat => c.includes(cat.trim())))
     );
     table.clear().rows.add(filtered).draw();
     updateChart(filtered);
   });
 
-  // Clear filters button
   $('#clearFiltersBtn').on('click', function() {
     $('#yearFilter').val([]);
     $('#categoryFilter').val([]);
     table.clear().rows.add(allAgendaItems).draw();
     updateChart(allAgendaItems);
   });
+
+  // OPTIONAL: auto-apply filters on select change (remove if you prefer button)
+  // $('#yearFilter, #categoryFilter').on('change', function () {
+  //   $('#applyFiltersBtn').click();
+  // });
 
   // Row expand/collapse for recommended_action
   $('#agendaTable tbody').on('click', 'td', function () {
