@@ -1,1 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Board Member Profile</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .board-profile { border:1px solid #ddd; border-radius:8px; padding:1em; margin:1em 0 2em 0; background:#fafcff; max-width:560px; }
+    .profile-header { display:flex; align-items:center; }
+    .profile-photo { width:88px; height:88px; border-radius:50%; object-fit:cover; margin-right:1.5em; border:2px solid #e1e1e1; }
+    .profile-info { font-size:1.13rem; }
+    .current-star { color:green; font-size:1.4em; vertical-align:middle; margin-left:0.18em; }
+    .profile-bio { margin-top:0.6em; font-size:1rem; color:#333;}
+    .profile-links { margin-top:0.8em; font-size:1rem;}
+    .votesummary-table { border-collapse: collapse; margin:1em 0 1.5em 0;}
+    .votesummary-table td, .votesummary-table th { border: 1px solid #ddd; padding: 0.45em 0.9em; }
+    .votesummary-table th { background:#f6f6f6;}
+    .votesummary-table td.yes { color:#219d56; }
+    .votesummary-table td.no { color:#d3331c; }
+    .votesummary-table td.abstain { color:#bba307; }
+    .votesummary-table td.absent { color:#888; }
+    .recent-table { border-collapse:collapse; width:99%; margin:0.5em 0 1.2em 0;}
+    .recent-table td, .recent-table th { border:1px solid #eee; padding:0.42em 0.65em; }
+    .recent-table th { background:#f4f6fb; }
+    .tag { display:inline-block; background:#e4effc; color:#1976d2; padding:1px 8px; border-radius:6px; font-size:0.96em; margin-left:0.4em;}
+    .notfound { color:#c33; background:#ffeaea; border:1px solid #eee; padding:1.5em; font-size:1.15em; border-radius:8px;}
+    a { color:#1a4eaa; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+
+  <div><a href="index.html">← Back to Dashboard</a></div>
+
+  <div id="profileArea"></div>
+
+<script>
+// Board member master list (most recent at top)
+const BOARD_MEMBERS = [
+  { name: "Sarah Silk",       term_start: 2025, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Corby Naylor",     term_start: 2025, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Eric Cultum",      term_start: 2023, term_end: 2026, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Kristen Acton",    term_start: 2021, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Vickie Landis",    term_start: 2015, term_end: 2026, photo: "", bio_url: "https://www.aguafria.org/Page/101" }
+];
+
+// Load agenda/vote data
+const chunkedFiles = [
+  "data/master_2013_2017.json",
+  "data/master_2018_2020.json",
+  "data/master_2021_2024.json",
+  "data/2025_combined.json"
+];
+
+// Utility for absent votes (if tracked)
+function computeAbsent(votesArr, memberName) {
+  if (!votesArr.length) return false;
+  return !votesArr.some(v => v && v.name === memberName);
+}
+
+// Only count consent block, not each sub-item
+function tallyVotesAndRecent(meetings, memberName) {
+  let yes=0, no=0, abstain=0, absent=0;
+  const recentNo = [], recentAbstain = [], recentAbsent = [];
+  // Descending by date for recents
+  const allVotes = [];
+  meetings.forEach(meeting => {
+    (meeting.agenda_items||[]).forEach(item => {
+      const cat = item.category ? item.category.toLowerCase() : "";
+      const title = item.title ? item.title.toLowerCase() : "";
+      const isConsentTop = (cat.includes("consent agenda") && title.includes("consideration of approval"));
+      const isConsentSub = (cat.includes("consent agenda") && !title.includes("consideration of approval"));
+      const mv = item.motion_and_voting || {};
+      const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+      const voteObj = votesArr.find(v => v && v.name === memberName);
+      // Only count top consent block once
+      if (isConsentTop) {
+        if (voteObj) {
+          if (voteObj.vote === "Yes") yes++;
+          else if (voteObj.vote === "No") { no++; recentNo.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"No"});}
+          else if (voteObj.vote === "Abstain") { abstain++; recentAbstain.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Abstain"});}
+          allVotes.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:voteObj.vote});
+        } else if (votesArr.length) {
+          absent++; recentAbsent.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Absent"});
+        }
+      } else if (!isConsentSub) {
+        if (voteObj) {
+          if (voteObj.vote === "Yes") yes++;
+          else if (voteObj.vote === "No") { no++; recentNo.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"No"});}
+          else if (voteObj.vote === "Abstain") { abstain++; recentAbstain.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Abstain"});}
+          allVotes.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:voteObj.vote});
+        } else if (votesArr.length) {
+          absent++; recentAbsent.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Absent"});
+        }
+      }
+    });
+  });
+  // Sort by date descending for recent votes
+  recentNo.sort((a,b)=>b.date.localeCompare(a.date));
+  recentAbstain.sort((a,b)=>b.date.localeCompare(a.date));
+  recentAbsent.sort((a,b)=>b.date.localeCompare(a.date));
+  return {
+    yes, no, abstain, absent,
+    recentNo: recentNo.slice(0,5), recentAbstain: recentAbstain.slice(0,5), recentAbsent: recentAbsent.slice(0,3),
+    allVotes
+  };
+}
+
+(async function() {
+  // Parse ?member=Name from URL
+  const params = new URLSearchParams(window.location.search);
+  const memberName = params.get("member");
+
+  // Find member (case-insensitive)
+  const member = BOARD_MEMBERS.find(m => m.name.toLowerCase() === (memberName||"").toLowerCase());
+  const profileDiv = document.getElementById("profileArea");
+  if (!member) {
+    profileDiv.innerHTML = `<div class="notfound">Board member not found.<br>
+    <br>Try clicking a name from the <a href="index.html">main dashboard</a>.</div>`;
+    return;
+  }
+
+  // Render initial profile (while votes load)
+  profileDiv.innerHTML = `
+    <div class="board-profile">
+      <div class="profile-header">
+        <img src="${member.photo||'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name) + '&size=88&background=e1e9ef&color=4d4d4d'}"
+          class="profile-photo" alt="${member.name}" />
+        <div class="profile-info">
+          <h2>${member.name} <span class="current-star" title="Current">★</span></h2>
+          <div><b>Term:</b> ${member.term_start}–${member.term_end}</div>
+          <div class="profile-links"><a href="${member.bio_url}" target="_blank">District Bio ↗</a></div>
+        </div>
+      </div>
+      <div class="profile-bio"></div>
+      <div id="votesummary"></div>
+      <div id="recentvotes"></div>
+    </div>
+  `;
+
+  // Load and tally votes
+  const meetings = [];
+  for (let file of chunkedFiles) {
+    try {
+      const resp = await fetch(file);
+      const json = await resp.json();
+      meetings.push(...json);
+    } catch (e) {}
+  }
+  // Restrict to meetings during member's service
+  const filteredMeetings = meetings.filter(m => {
+    const y = Number((m.meeting_date||"").slice(0,4));
+    return y >= member.term_start && y <= member.term_end;
+  });
+  const vt = tallyVotesAndRecent(filteredMeetings, member.name);
+
+  // Insert vote summary
+  document.getElementById("votesummary").innerHTML = `
+    <table class="votesummary-table">
+      <tr>
+        <th>Yes</th>
+        <th>No</th>
+        <th>Abstain</th>
+        <th>Absent</th>
+        <th>Total</th>
+      </tr>
+      <tr>
+        <td class="yes">${vt.yes}</td>
+        <td class="no">${vt.no}</td>
+        <td class="abstain">${vt.abstain}</td>
+        <td class="absent">${vt.absent}</td>
+        <td><b>${vt.yes + vt.no + vt.abstain + vt.absent}</b></td>
+      </tr>
+    </table>
+  `;
+
+  // Insert recent No/Abstain/Absent breakdown
+  let recentHtml = "";
+  if (vt.recentNo.length || vt.recentAbstain.length || vt.recentAbsent.length) {
+    recentHtml += `<div style="margin-bottom:0.6em;"><b>Recent 'No', 'Abstain', or 'Absent' votes:</b></div>
+    <table class="recent-table">
+      <tr>
+        <th>Date</th><th>Agenda Item</th><th>Vote</th>
+      </tr>
+      ${[...vt.recentNo, ...vt.recentAbstain, ...vt.recentAbsent]
+        .sort((a,b)=>b.date.localeCompare(a.date))
+        .slice(0,8)
+        .map(v =>
+          `<tr>
+            <td>${v.date||""}</td>
+            <td>${v.item||""}${v.cat ? `<span class="tag">${v.cat}</span>` : ""}</td>
+            <td><b>${v.result}</b></td>
+          </tr>`
+        ).join("")}
+    </table>`;
+  } else {
+    recentHtml = `<div style="color:#888;">No recent 'No', 'Abstain', or 'Absent' votes found during this term.</div>`;
+  }
+  document.getElementById("recentvotes").innerHTML = recentHtml;
+
+})();
+</script>
+
+</body>
+</html>
 
