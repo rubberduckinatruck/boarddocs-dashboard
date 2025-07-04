@@ -235,7 +235,7 @@ function updateTable(data, category) {
 // MAIN DATA LOAD: fetch and merge both files
 Promise.all([
   fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
-  fetch("data/2025_combined.json").then(res => res.json())
+  fetch("data/2025_cleaned.json").then(res => res.json())
 ]).then(([data1, data2]) => {
   // Merge arrays, ignore if not array
   rawData = Array.isArray(data1) && Array.isArray(data2)
