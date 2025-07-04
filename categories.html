@@ -10,9 +10,19 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
-    .chart-container { max-width: 700px; margin: 2rem auto; }
+    .chart-container {
+      max-width: 700px;
+      margin: 2rem auto;
+      height: 360px;
+    }
+    canvas {
+      height: 100% !important;
+      max-width: 100%;
+      display: block;
+    }
     #categorySelect { font-size: 1rem; padding: 0.3rem 1rem; }
     #categoryTable { width: 100%; margin-top: 2rem; }
+    tfoot input { width: 98%; padding: 2px; box-sizing: border-box; }
   </style>
 </head>
 <body>
@@ -50,27 +60,34 @@
     <thead>
       <tr>
         <th>Date</th>
-        <th>Meeting</th>
         <th>Title</th>
         <th>Type</th>
         <th>Tags</th>
         <th>Red Flag</th>
       </tr>
     </thead>
+    <tfoot>
+      <tr>
+        <th>Date</th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Tags</th>
+        <th>Red Flag</th>
+      </tr>
+    </tfoot>
     <tbody></tbody>
   </table>
 
 <script>
-// --- CATEGORY NORMALIZATION (Copy from index) ---
+// Strict normalization with typo/variant handling
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
-
   const map = [
     { tag: "Call to Order", regex: /call to order/ },
     { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
     { tag: "Information", regex: /information|discussion|presentation|informational/ },
-    { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
+    { tag: "Recognition/Celebration", regex: /recognition|recognize|recognitions|celebration|presentations? and celebrations?/ },
     { tag: "Call to the Public", regex: /call to the public|public comments?/ },
     { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
     { tag: "Action Items", regex: /action items?/ },
@@ -80,11 +97,9 @@ function normalizeCategories(cat) {
     { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
     { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
     { tag: "Public Hearing", regex: /public hearing/ },
-    { tag: "Recognitions", regex: /recognitions?/ },
     { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
     { tag: "Board Advisory Committee", regex: /advisory committee/ }
   ];
-
   const tags = [];
   for (let m of map) {
     if (cat.match(m.regex)) tags.push(m.tag);
@@ -93,23 +108,9 @@ function normalizeCategories(cat) {
   return [...new Set(tags)];
 }
 
-// --- END CATEGORY NORMALIZATION ---
-
 let rawData = [];
 let pieChart, barChart, table;
 
-// Helper: Flatten all normalized categories for each item
-function flattenCategories(data) {
-  return data.reduce((acc, item) => {
-    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
-    cats.forEach(cat => {
-      if (!acc.includes(cat)) acc.push(cat);
-    });
-    return acc;
-  }, []);
-}
-
-// Count frequency of ALL tags, not just first
 function countCategories(data) {
   const counts = {};
   data.forEach(item => {
@@ -125,7 +126,7 @@ function getYears(data) {
   return Array.from(new Set(data.map(item => (item.meeting_date || '').slice(0,4)))).filter(y=>y).sort();
 }
 
-// Counts how many items have this category (as any of their tags) in each year
+// Counts items per category per year
 function countByYear(data, category) {
   const yearCounts = {};
   data.forEach(item => {
@@ -151,6 +152,8 @@ function updatePieChart(counts) {
       datasets: [{ data: nums }]
     },
     options: {
+      maintainAspectRatio: false,
+      animation: false,
       plugins: {
         title: {
           display: true,
@@ -176,6 +179,8 @@ function updateBarChart(yearCounts, category) {
       }]
     },
     options: {
+      maintainAspectRatio: false,
+      animation: false,
       plugins: {
         title: {
           display: true,
@@ -197,18 +202,36 @@ function updateTable(data, category) {
   });
   $("#categoryName").text(category);
   $("#tableTitle").toggle(filtered.length > 0);
+
+  // Set up footer filter fields if not present
+  if ($('#categoryTable tfoot input').length === 0) {
+    $('#categoryTable tfoot th').each(function() {
+      $(this).html('<input type="text" placeholder="Search" />');
+    });
+  }
+
   if (table) table.destroy();
   table = $("#categoryTable").DataTable({
     data: filtered,
     columns: [
       { data: "meeting_date" },
-      { data: "meeting_title" },
       { data: "title" },
       { data: "type" },
       { data: "union_impact_tags", render: tags => tags && tags.length ? tags.join(", ") : "" },
       { data: "red_flag", render: f => f ? "🚩" : "" }
     ],
-    order: [[0, "desc"]]
+    order: [[0, "desc"]],
+    initComplete: function () {
+      // Per-column filter
+      this.api().columns().every(function () {
+        var that = this;
+        $('input', this.footer()).off().on('keyup change clear', function () {
+          if (that.search() !== this.value) {
+            that.search(this.value).draw();
+          }
+        });
+      });
+    }
   });
 }
 
@@ -216,7 +239,7 @@ function updateTable(data, category) {
 fetch("data/tagged_agenda_items.json")
   .then(res => res.json())
   .then(data => {
-    // Map to cleaned category arrays for every item (in case parser didn't)
+    // Ensure every item has normalized categories
     rawData = data.map(item => {
       return { ...item, category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category) }
     });
