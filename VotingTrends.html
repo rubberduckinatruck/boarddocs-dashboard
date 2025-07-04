@@ -8,7 +8,14 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h2 { margin-top: 2rem; }
-    canvas { max-width: 1000px; margin: 2rem auto; display: block; }
+    #yesNoChart {
+      min-height: 320px !important;
+      height: 360px !important;
+      max-width: 1000px;
+      margin: 2rem auto;
+      display: block;
+      background: #fff;
+    }
   </style>
 </head>
 <body>
@@ -42,6 +49,7 @@
       "data/2025_combined.json"
     ];
 
+    // Load and flatten all meetings data
     async function loadAllMeetings(files) {
       const allMeetings = [];
       for (let file of files) {
@@ -56,6 +64,7 @@
       return allMeetings;
     }
 
+    // Tally votes by member name
     function tallyVotesFromVotesArray(meetings) {
       const voteTally = {};
       meetings.forEach(meeting => {
@@ -63,7 +72,7 @@
           const mv = item.motion_and_voting || {};
           const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
           votesArr.forEach(v => {
-            if (!v || !v.name) return;
+            if (!v || !v.name || !v.vote) return; // skip invalid
             if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
             if (v.vote === "Yes") voteTally[v.name].yes++;
             else if (v.vote === "No") voteTally[v.name].no++;
@@ -78,21 +87,35 @@
       const meetings = await loadAllMeetings(chunkedFiles);
       const voteTally = tallyVotesFromVotesArray(meetings);
 
-      const names = Object.keys(voteTally).sort();
+      // Sort by total votes, then name (optional: use just by name if preferred)
+      const names = Object.keys(voteTally).sort((a, b) => {
+        const atot = voteTally[a].yes + voteTally[a].no + voteTally[a].abstain;
+        const btot = voteTally[b].yes + voteTally[b].no + voteTally[b].abstain;
+        return btot - atot || a.localeCompare(b);
+      });
+
       const yesCounts = names.map(n => voteTally[n].yes);
       const noCounts = names.map(n => voteTally[n].no);
       const abstainCounts = names.map(n => voteTally[n].abstain);
 
+      // Log to debug if needed
+      // console.log("Board members:", names);
+      // console.log("Yes:", yesCounts, "No:", noCounts, "Abstain:", abstainCounts);
+
       if (names.length === 0) {
         document.getElementById("yesNoChart").style.display = "none";
         const msg = document.createElement("div");
+        msg.style.margin = "2em 0";
         msg.innerHTML = "<b>No voting data available.</b>";
         document.body.appendChild(msg);
         return;
       }
 
+      // If you ever need to destroy a previous chart:
+      if (window.voteTrendsChart) window.voteTrendsChart.destroy();
+
       const ctx = document.getElementById("yesNoChart").getContext("2d");
-      new Chart(ctx, {
+      window.voteTrendsChart = new Chart(ctx, {
         type: "bar",
         data: {
           labels: names,
@@ -116,14 +139,31 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             title: {
               display: true,
               text: "Board Member Voting Summary"
             },
+            legend: { position: 'top' },
             tooltip: {
               mode: 'index',
               intersect: false
+            }
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          scales: {
+            x: {
+              stacked: true,
+              title: { display: false }
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              title: { display: true, text: "Number of Votes" }
             }
           }
         }
