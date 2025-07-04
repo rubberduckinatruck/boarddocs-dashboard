@@ -10,14 +10,23 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
-    #memberFilter { margin: 1.5em 0 1em 0; font-size: 1.05rem; }
-    #memberFilter label { font-weight: bold; }
+    #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
+    #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
+    #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
     .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
     .current-highlight { background: #e9faea !important; }
     canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
     table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
     th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
     th { background-color: #f4f4f4; }
+    select[multiple] {
+      min-width: 130px;
+      min-height: 5.5em;
+      background: #fafcff;
+      border: 1px solid #ddd;
+      font-size: 0.95rem;
+      margin-bottom: 0.6em;
+    }
   </style>
 </head>
 <body>
@@ -46,6 +55,19 @@
       <input type="checkbox" id="showCurrentOnly" />
       Show only current board members
       <span class="current-star" title="Current Member">★</span>
+    </label>
+  </div>
+
+  <div id="additionalFilters">
+    <label>
+      <input type="checkbox" id="showPastYearOnly" />
+      Show only past year of votes
+    </label>
+    <label>
+      Types:
+      <select id="typeFilter" multiple>
+        <!-- Populated by JS with all unique types -->
+      </select>
     </label>
   </div>
 
@@ -103,25 +125,50 @@ function sortMembers(members) {
   });
 }
 
+let allMeetings = [];
+let allTypes = [];
+
 async function loadAllMeetings(files) {
-  const allMeetings = [];
+  const meetings = [];
   for (let file of files) {
     try {
       const resp = await fetch(file);
       const json = await resp.json();
-      allMeetings.push(...json);
+      meetings.push(...json);
     } catch (e) {
       console.error("Failed to load", file, e);
     }
   }
-  return allMeetings;
+  return meetings;
+}
+
+// Get unique types from all loaded meetings
+function getAllUniqueTypes(meetings) {
+  const typeSet = new Set();
+  meetings.forEach(meeting => {
+    (meeting.agenda_items || []).forEach(item => {
+      if (item.type && item.type.trim()) typeSet.add(item.type.trim());
+    });
+  });
+  return Array.from(typeSet).sort();
 }
 
 // Consent agenda fix: only count the "consideration of approval" item for consent, not sub-items
-function tallyVotesNoConsentDupes(meetings) {
+function tallyVotesWithFilters(meetings, {pastYearOnly, typeSet}) {
   const voteTally = {};
+  const now = new Date();
+  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
   meetings.forEach(meeting => {
+    // Date filter
+    const meetingDate = new Date(meeting.meeting_date);
+    if (pastYearOnly && meetingDate < oneYearAgo) return;
+
     (meeting.agenda_items || []).forEach(item => {
+      // Type filter
+      const itemType = (item.type || "").trim();
+      if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
+
       const cat = item.category ? item.category.toLowerCase() : "";
       const title = item.title ? item.title.toLowerCase() : "";
       const isConsentTop = (
@@ -242,7 +289,7 @@ function renderTableAndChart(members) {
       plugins: {
         title: {
           display: true,
-          text: "Board Member Voting Totals (All Agendas)"
+          text: "Board Member Voting Totals"
         },
         legend: {
           position: "top"
@@ -262,20 +309,34 @@ function renderTableAndChart(members) {
 }
 
 (async function() {
-  const meetings = await loadAllMeetings(chunkedFiles);
-  voteTally = tallyVotesNoConsentDupes(meetings);
+  allMeetings = await loadAllMeetings(chunkedFiles);
+  allTypes = getAllUniqueTypes(allMeetings);
+
+  // Populate type filter
+  allTypes.forEach(type => {
+    $('#typeFilter').append(`<option value="${type}">${type}</option>`);
+  });
 
   sortedMembers = sortMembers(BOARD_MEMBERS);
 
+  // Default: all votes/all types/all time
+  voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: false, typeSet: new Set()});
   renderTableAndChart(sortedMembers);
 
-  // Checkbox filter for current members only
-  $('#showCurrentOnly').on('change', function() {
-    const filtered = this.checked
+  // Filter logic
+  function applyAllFilters() {
+    const pastYear = $('#showPastYearOnly').is(':checked');
+    const typeSet = new Set($('#typeFilter').val() || []);
+    voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: pastYear, typeSet});
+    // Apply member filter too
+    const filtered = $('#showCurrentOnly').is(':checked')
       ? sortedMembers.filter(isCurrentMember)
       : sortedMembers;
     renderTableAndChart(filtered);
-  });
+  }
+
+  // Listeners for all filters
+  $('#showCurrentOnly, #showPastYearOnly, #typeFilter').on('change', applyAllFilters);
 })();
 </script>
 
