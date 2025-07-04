@@ -10,8 +10,12 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
+    #memberFilter { margin: 1.5em 0 1em 0; font-size: 1.05rem; }
+    #memberFilter label { font-weight: bold; }
+    .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
+    .current-highlight { background: #e9faea !important; }
     canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
-    table { width: 100%; margin-top: 2rem; border-collapse: collapse; }
+    table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
     th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
     th { background-color: #f4f4f4; }
   </style>
@@ -37,6 +41,14 @@
     Strengthen public testimony with member-specific data<br>
     Identify allies/opponents for advocacy efforts</p>
 
+  <div id="memberFilter">
+    <label>
+      <input type="checkbox" id="showCurrentOnly" />
+      Show only current board members
+      <span class="current-star" title="Current Member">★</span>
+    </label>
+  </div>
+
   <canvas id="voteBreakdownChart"></canvas>
 
   <table id="voteTable">
@@ -60,7 +72,37 @@ const chunkedFiles = [
   "data/2025_combined.json"
 ];
 
-// Load and flatten all meetings data
+// Add all historical and current members here (expand as needed)
+const BOARD_MEMBERS = [
+  { name: "Vickie Landis",        term_start: 2015, term_end: 2026 },
+  { name: "Kristen Acton",        term_start: 2021, term_end: 2024 },
+  { name: "Trey Terry",           term_start: 2021, term_end: 2024 },
+  { name: "Gina DeCoste",         term_start: 2015, term_end: 2024 },
+  { name: "Maxine Hill",          term_start: 2015, term_end: 2022 },
+  { name: "Mariana Sandoval",     term_start: 2017, term_end: 2020 },
+  { name: "Mary Kay Utecht",      term_start: 2017, term_end: 2020 },
+  { name: "Eric Cultum",          term_start: 2023, term_end: 2026 },
+  { name: "Sarah Silk",           term_start: 2025, term_end: 2028 },
+  { name: "Corby Naylor",         term_start: 2025, term_end: 2028 },
+  { name: "Tom Rosztoczy",        term_start: 2011, term_end: 2016 },
+  { name: "Ron Whitney",          term_start: 2009, term_end: 2015 }
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+function isCurrentMember(member) {
+  return member.term_start <= CURRENT_YEAR && member.term_end >= CURRENT_YEAR;
+}
+
+function sortMembers(members) {
+  return [...members].sort((a, b) => {
+    const aCurrent = isCurrentMember(a);
+    const bCurrent = isCurrentMember(b);
+    if (aCurrent !== bCurrent) return bCurrent - aCurrent; // true first
+    return a.name.localeCompare(b.name);
+  });
+}
+
 async function loadAllMeetings(files) {
   const allMeetings = [];
   for (let file of files) {
@@ -75,11 +117,10 @@ async function loadAllMeetings(files) {
   return allMeetings;
 }
 
-// Improved tally: Only count Consent Agenda votes ONCE (on top-level motion)
+// Consent agenda fix: only count the "consideration of approval" item for consent, not sub-items
 function tallyVotesNoConsentDupes(meetings) {
   const voteTally = {};
   meetings.forEach(meeting => {
-    let consentVoted = false;
     (meeting.agenda_items || []).forEach(item => {
       const cat = item.category ? item.category.toLowerCase() : "";
       const title = item.title ? item.title.toLowerCase() : "";
@@ -94,7 +135,6 @@ function tallyVotesNoConsentDupes(meetings) {
       const mv = item.motion_and_voting || {};
       const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
       if (isConsentTop) {
-        // Only count the Consent Agenda block once
         votesArr.forEach(v => {
           if (!v || !v.name || !v.vote) return;
           if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
@@ -102,9 +142,7 @@ function tallyVotesNoConsentDupes(meetings) {
           else if (v.vote === "No") voteTally[v.name].no++;
           else if (v.vote === "Abstain") voteTally[v.name].abstain++;
         });
-        consentVoted = true;
       } else if (!isConsentSub) {
-        // Count non-consent agenda items as normal
         votesArr.forEach(v => {
           if (!v || !v.name || !v.vote) return;
           if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
@@ -113,28 +151,74 @@ function tallyVotesNoConsentDupes(meetings) {
           else if (v.vote === "Abstain") voteTally[v.name].abstain++;
         });
       }
-      // else: skip consent sub-items (their votes are already counted above)
     });
   });
   return voteTally;
 }
 
-(async function() {
-  const meetings = await loadAllMeetings(chunkedFiles);
-  const voteTally = tallyVotesNoConsentDupes(meetings);
+let voteTally = {};
+let sortedMembers = [];
 
-  const members = Object.keys(voteTally).sort();
-  const yesCounts = members.map(m => voteTally[m].yes);
-  const noCounts = members.map(m => voteTally[m].no);
-  const abstainCounts = members.map(m => voteTally[m].abstain);
+function renderTableAndChart(members) {
+  // Build table data and row class for current members
+  const tableData = members.map(member => {
+    const yes = voteTally[member.name]?.yes || 0;
+    const no = voteTally[member.name]?.no || 0;
+    const abstain = voteTally[member.name]?.abstain || 0;
+    const total = yes + no + abstain;
+    const star = isCurrentMember(member)
+      ? '<span class="current-star" title="Current Board Member">★</span>'
+      : '';
+    return [
+      `${member.name} ${star}`,
+      yes, no, abstain, total
+    ];
+  });
 
-  // Chart.js bar chart (destroy old if present)
+  // DataTable with or without reset
+  if ($.fn.DataTable.isDataTable('#voteTable')) {
+    const dt = $('#voteTable').DataTable();
+    dt.clear().rows.add(tableData).draw();
+    // Highlight current members
+    $('#voteTable tbody tr').each(function(idx) {
+      if (isCurrentMember(members[idx])) $(this).addClass('current-highlight');
+      else $(this).removeClass('current-highlight');
+    });
+  } else {
+    $('#voteTable').DataTable({
+      data: tableData,
+      columns: [
+        { title: "Board Member" },
+        { title: "Yes Votes" },
+        { title: "No Votes" },
+        { title: "Abstain Votes" },
+        { title: "Total Votes" }
+      ],
+      paging: false,
+      searching: false,
+      info: false,
+      createdRow: function(row, data, dataIndex) {
+        if (isCurrentMember(members[dataIndex])) {
+          $(row).addClass('current-highlight');
+        }
+      }
+    });
+  }
+
+  // Chart
+  const names = members.map(m =>
+    isCurrentMember(m) ? `${m.name} ★` : m.name
+  );
+  const yesCounts = members.map(m => voteTally[m.name]?.yes || 0);
+  const noCounts = members.map(m => voteTally[m.name]?.no || 0);
+  const abstainCounts = members.map(m => voteTally[m.name]?.abstain || 0);
+
   if (window.voteProfileChart) window.voteProfileChart.destroy();
   const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
   window.voteProfileChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: members,
+      labels: names,
       datasets: [
         {
           label: "Yes Votes",
@@ -175,34 +259,23 @@ function tallyVotesNoConsentDupes(meetings) {
       }
     }
   });
+}
 
-  // Build table data as array
-  const tableData = members.map(member => {
-    const yes = voteTally[member].yes;
-    const no = voteTally[member].no;
-    const abstain = voteTally[member].abstain;
-    const total = yes + no + abstain;
-    return [member, yes, no, abstain, total];
+(async function() {
+  const meetings = await loadAllMeetings(chunkedFiles);
+  voteTally = tallyVotesNoConsentDupes(meetings);
+
+  sortedMembers = sortMembers(BOARD_MEMBERS);
+
+  renderTableAndChart(sortedMembers);
+
+  // Checkbox filter for current members only
+  $('#showCurrentOnly').on('change', function() {
+    const filtered = this.checked
+      ? sortedMembers.filter(isCurrentMember)
+      : sortedMembers;
+    renderTableAndChart(filtered);
   });
-
-  // Destroy old DataTable if present, then update or create fresh
-  if ($.fn.DataTable.isDataTable('#voteTable')) {
-    $('#voteTable').DataTable().clear().rows.add(tableData).draw();
-  } else {
-    $('#voteTable').DataTable({
-      data: tableData,
-      columns: [
-        { title: "Board Member" },
-        { title: "Yes Votes" },
-        { title: "No Votes" },
-        { title: "Abstain Votes" },
-        { title: "Total Votes" }
-      ],
-      paging: false,
-      searching: false,
-      info: false
-    });
-  }
 })();
 </script>
 
