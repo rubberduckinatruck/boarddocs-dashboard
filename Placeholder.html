@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Placeholder</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h2 { margin-top: 2rem; }
+    #yesNoChart {
+      min-height: 320px !important;
+      height: 360px !important;
+      max-width: 1000px;
+      margin: 2rem auto;
+      display: block;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <!-- Shared nav -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <h1>Placeholder</h1>
+</body>
+</html>
