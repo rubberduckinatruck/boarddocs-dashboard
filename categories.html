@@ -61,14 +61,62 @@
   </table>
 
 <script>
+// --- CATEGORY NORMALIZATION (Copy from index) ---
+function normalizeCategories(cat) {
+  if (!cat) return ["Other"];
+  cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
+
+  const map = [
+    { tag: "Call to Order", regex: /call to order/ },
+    { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
+    { tag: "Information", regex: /information|discussion|presentation|informational/ },
+    { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
+    { tag: "Call to the Public", regex: /call to the public|public comments?/ },
+    { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
+    { tag: "Action Items", regex: /action items?/ },
+    { tag: "Consent Agenda Items", regex: /consent agenda/ },
+    { tag: "Future Agenda Items", regex: /future agenda/ },
+    { tag: "Return to Regular Session", regex: /return to regular session|reconvene|resturn to regular session|reconvene regular board meeting|reconvene meeting|reconvene the regular board meeting|reconvene to regular session/ },
+    { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
+    { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
+    { tag: "Public Hearing", regex: /public hearing/ },
+    { tag: "Recognitions", regex: /recognitions?/ },
+    { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
+    { tag: "Board Advisory Committee", regex: /advisory committee/ }
+  ];
+
+  const tags = [];
+  for (let m of map) {
+    if (cat.match(m.regex)) tags.push(m.tag);
+  }
+  if (tags.length === 0) tags.push("Other");
+  return [...new Set(tags)];
+}
+
+// --- END CATEGORY NORMALIZATION ---
+
 let rawData = [];
 let pieChart, barChart, table;
 
+// Helper: Flatten all normalized categories for each item
+function flattenCategories(data) {
+  return data.reduce((acc, item) => {
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    cats.forEach(cat => {
+      if (!acc.includes(cat)) acc.push(cat);
+    });
+    return acc;
+  }, []);
+}
+
+// Count frequency of ALL tags, not just first
 function countCategories(data) {
   const counts = {};
   data.forEach(item => {
-    let cat = (item.category || "Uncategorized").trim();
-    counts[cat] = (counts[cat] || 0) + 1;
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    cats.forEach(cat => {
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
   });
   return counts;
 }
@@ -77,10 +125,12 @@ function getYears(data) {
   return Array.from(new Set(data.map(item => (item.meeting_date || '').slice(0,4)))).filter(y=>y).sort();
 }
 
+// Counts how many items have this category (as any of their tags) in each year
 function countByYear(data, category) {
   const yearCounts = {};
   data.forEach(item => {
-    if ((item.category || "Uncategorized").trim() === category) {
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    if (cats.includes(category)) {
       const year = (item.meeting_date || '').slice(0,4);
       if (year) yearCounts[year] = (yearCounts[year] || 0) + 1;
     }
@@ -139,8 +189,12 @@ function updateBarChart(yearCounts, category) {
   });
 }
 
+// Show all items that include this category in their tags
 function updateTable(data, category) {
-  const filtered = data.filter(item => (item.category || "Uncategorized").trim() === category);
+  const filtered = data.filter(item => {
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    return cats.includes(category);
+  });
   $("#categoryName").text(category);
   $("#tableTitle").toggle(filtered.length > 0);
   if (table) table.destroy();
@@ -158,14 +212,19 @@ function updateTable(data, category) {
   });
 }
 
+// MAIN DATA LOAD
 fetch("data/tagged_agenda_items.json")
   .then(res => res.json())
   .then(data => {
-    rawData = data;
-    const catCounts = countCategories(data);
+    // Map to cleaned category arrays for every item (in case parser didn't)
+    rawData = data.map(item => {
+      return { ...item, category: Array.isArray(item.category) ? item.category : normalizeCategories(item.category) }
+    });
+
+    const catCounts = countCategories(rawData);
     updatePieChart(catCounts);
 
-    // Populate category selector
+    // Populate category selector with all possible cleaned tags
     const sortedCats = Object.keys(catCounts).sort();
     for (const cat of sortedCats) {
       $("#categorySelect").append(`<option value="${cat}">${cat}</option>`);
@@ -175,15 +234,15 @@ fetch("data/tagged_agenda_items.json")
     let initialCat = sortedCats[0];
     $("#categorySelect").val(initialCat);
 
-    const yearCounts = countByYear(data, initialCat);
+    const yearCounts = countByYear(rawData, initialCat);
     updateBarChart(yearCounts, initialCat);
-    updateTable(data, initialCat);
+    updateTable(rawData, initialCat);
 
     $("#categorySelect").on("change", function() {
       const selectedCat = $(this).val();
-      const yrCounts = countByYear(data, selectedCat);
+      const yrCounts = countByYear(rawData, selectedCat);
       updateBarChart(yrCounts, selectedCat);
-      updateTable(data, selectedCat);
+      updateTable(rawData, selectedCat);
     });
   });
 </script>
