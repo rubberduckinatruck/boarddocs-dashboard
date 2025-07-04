@@ -10,9 +10,27 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
-    #filters { margin-bottom: 1rem; }
-    canvas { max-width: 800px; margin: 2rem auto; display: block; }
-    select[multiple] { min-width: 130px; min-height: 2.1em; }
+    #filters { margin-bottom: 1.5em; }
+    #filters label {
+      display: inline-block;
+      margin-right: 1.5em;
+      vertical-align: top;
+    }
+    select[multiple] {
+      min-width: 170px;
+      min-height: 7em;
+      background: #fafcff;
+      border: 1px solid #ddd;
+      font-size: 1rem;
+      margin-right: 1em;
+      margin-bottom: 0.6em;
+    }
+    canvas {
+      height: 100% !important;
+      max-width: 100%;
+      display: block;
+      margin: 2rem auto;
+    }
     .truncate-cell {
       white-space: nowrap;
       overflow: hidden;
@@ -96,12 +114,11 @@ const chunkedFiles = [
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
-
   const map = [
     { tag: "Call to Order", regex: /call to order/ },
     { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
     { tag: "Information", regex: /information|discussion|presentation|informational/ },
-    { tag: "Recognition/Celebration", regex: /recognition|recognize|recognitions|celebration|presentations? and celebrations?/ },
+    { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
     { tag: "Call to the Public", regex: /call to the public|public comments?/ },
     { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
     { tag: "Action Items", regex: /action items?/ },
@@ -111,10 +128,10 @@ function normalizeCategories(cat) {
     { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
     { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
     { tag: "Public Hearing", regex: /public hearing/ },
+    { tag: "Recognitions", regex: /recognitions?/ },
     { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
     { tag: "Board Advisory Committee", regex: /advisory committee/ }
   ];
-
   const tags = [];
   for (let m of map) {
     if (cat.match(m.regex)) tags.push(m.tag);
@@ -189,7 +206,8 @@ async function loadAllAgendaItems(files) {
 function populateFilters(data) {
   const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort();
   const categories = [...new Set(data.flatMap(r => r.category || []) )].filter(Boolean).sort();
-
+  $('#yearFilter').empty();
+  $('#categoryFilter').empty();
   for (const y of years) {
     $('#yearFilter').append(`<option value="${y}">${y}</option>`);
   }
@@ -215,6 +233,13 @@ function updateChart(data) {
         label: 'Total Votes',
         data: Object.values(result),
       }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        title: { display: true, text: "Vote Totals (Visible Items)" }
+      }
     }
   });
 }
@@ -257,13 +282,13 @@ function updateChart(data) {
 
   updateChart(allAgendaItems);
 
-  // Only filter when button is clicked
+  // Filter on button click
   $('#applyFiltersBtn').on('click', function () {
-    const y = $('#yearFilter').val();
-    const c = $('#categoryFilter').val();
+    const y = $('#yearFilter').val() || [];
+    const c = $('#categoryFilter').val() || [];
     const filtered = allAgendaItems.filter(r =>
-      (!y || y.includes(r.year)) &&
-      (!c || (r.category || []).some(cat => c.includes(cat)))
+      (y.length === 0 || y.includes(r.year)) &&
+      (c.length === 0 || (r.category || []).some(cat => c.includes(cat)))
     );
     table.clear().rows.add(filtered).draw();
     updateChart(filtered);
@@ -277,7 +302,7 @@ function updateChart(data) {
     updateChart(allAgendaItems);
   });
 
-  // Row expand/collapse for recommended_action (robust for DataTables redraw)
+  // Row expand/collapse for recommended_action
   $('#agendaTable tbody').on('click', 'td', function () {
     var tr = $(this).closest('tr');
     tr.toggleClass('expanded');
