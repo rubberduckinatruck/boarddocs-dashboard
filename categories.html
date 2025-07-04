@@ -1,10 +1,192 @@
-categories.html – Topic Area Frequency
-Purpose: Explore which categories are most used (e.g. Personnel, Consent, Policy)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Categories</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    .chart-container { max-width: 700px; margin: 2rem auto; }
+    #categorySelect { font-size: 1rem; padding: 0.3rem 1rem; }
+    #categoryTable { width: 100%; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
 
-Visuals: Pie chart, bar chart by year
+  <h1>Category Frequency</h1>
+  <p>
+    <b>Purpose:</b> Explore which categories are most used (e.g. Personnel, Consent, Policy)<br>
+    <b>Actionable Uses:</b><br>
+    Spot under-discussed areas (e.g. curriculum rarely updated?)<br>
+    Show trends in what board prioritizes over time
+  </p>
 
-Actionable Uses:
+  <div class="chart-container">
+    <canvas id="pieChart"></canvas>
+  </div>
+  <div style="text-align:center; margin-bottom:1rem;">
+    <label for="categorySelect"><b>See Trends By Year:</b> </label>
+    <select id="categorySelect"></select>
+  </div>
+  <div class="chart-container">
+    <canvas id="barChart"></canvas>
+  </div>
 
-Spot under-discussed areas (e.g. curriculum rarely updated?)
+  <h3 id="tableTitle" style="margin-top:2rem;">Agenda Items in <span id="categoryName"></span></h3>
+  <table id="categoryTable" class="display">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Meeting</th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Tags</th>
+        <th>Red Flag</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-Show trends in what board prioritizes over time
+<script>
+let rawData = [];
+let pieChart, barChart, table;
+
+function countCategories(data) {
+  const counts = {};
+  data.forEach(item => {
+    let cat = (item.category || "Uncategorized").trim();
+    counts[cat] = (counts[cat] || 0) + 1;
+  });
+  return counts;
+}
+
+function getYears(data) {
+  return Array.from(new Set(data.map(item => (item.meeting_date || '').slice(0,4)))).filter(y=>y).sort();
+}
+
+function countByYear(data, category) {
+  const yearCounts = {};
+  data.forEach(item => {
+    if ((item.category || "Uncategorized").trim() === category) {
+      const year = (item.meeting_date || '').slice(0,4);
+      if (year) yearCounts[year] = (yearCounts[year] || 0) + 1;
+    }
+  });
+  return yearCounts;
+}
+
+function updatePieChart(counts) {
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const cats = sorted.map(e => e[0]);
+  const nums = sorted.map(e => e[1]);
+  if (pieChart) pieChart.destroy();
+  const ctx = document.getElementById("pieChart").getContext("2d");
+  pieChart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: cats,
+      datasets: [{ data: nums }]
+    },
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: "Most Frequent Categories (All Years)"
+        }
+      }
+    }
+  });
+}
+
+function updateBarChart(yearCounts, category) {
+  const years = Object.keys(yearCounts).sort();
+  const vals = years.map(y => yearCounts[y]);
+  if (barChart) barChart.destroy();
+  const ctx = document.getElementById("barChart").getContext("2d");
+  barChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: years,
+      datasets: [{
+        label: category,
+        data: vals
+      }]
+    },
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: `Yearly Frequency: ${category}`
+        }
+      },
+      scales: {
+        y: { beginAtZero:true }
+      }
+    }
+  });
+}
+
+function updateTable(data, category) {
+  const filtered = data.filter(item => (item.category || "Uncategorized").trim() === category);
+  $("#categoryName").text(category);
+  $("#tableTitle").toggle(filtered.length > 0);
+  if (table) table.destroy();
+  table = $("#categoryTable").DataTable({
+    data: filtered,
+    columns: [
+      { data: "meeting_date" },
+      { data: "meeting_title" },
+      { data: "title" },
+      { data: "type" },
+      { data: "union_impact_tags", render: tags => tags && tags.length ? tags.join(", ") : "" },
+      { data: "red_flag", render: f => f ? "🚩" : "" }
+    ],
+    order: [[0, "desc"]]
+  });
+}
+
+fetch("data/tagged_agenda_items.json")
+  .then(res => res.json())
+  .then(data => {
+    rawData = data;
+    const catCounts = countCategories(data);
+    updatePieChart(catCounts);
+
+    // Populate category selector
+    const sortedCats = Object.keys(catCounts).sort();
+    for (const cat of sortedCats) {
+      $("#categorySelect").append(`<option value="${cat}">${cat}</option>`);
+    }
+
+    // Initial load: pick first real category
+    let initialCat = sortedCats[0];
+    $("#categorySelect").val(initialCat);
+
+    const yearCounts = countByYear(data, initialCat);
+    updateBarChart(yearCounts, initialCat);
+    updateTable(data, initialCat);
+
+    $("#categorySelect").on("change", function() {
+      const selectedCat = $(this).val();
+      const yrCounts = countByYear(data, selectedCat);
+      updateBarChart(yrCounts, selectedCat);
+      updateTable(data, selectedCat);
+    });
+  });
+</script>
+
+</body>
+</html>
