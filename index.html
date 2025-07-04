@@ -103,12 +103,10 @@
   <canvas id="voteChart"></canvas>
 
 <script>
-// --- CONFIG ---
 const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
-
 
 // --- CATEGORY NORMALIZATION ---
 function normalizeCategories(cat) {
@@ -312,24 +310,28 @@ function updateChart(data) {
     const row = table.row(dataIndex).data();
     const rowYear = row.year || '';
     const rowCats = Array.isArray(row.category) ? row.category : [row.category];
-    if (selectedYears.length > 0 && !selectedYears.includes(rowYear)) {
+    // If any year/category selected, must match; else match all
+    if (selectedYears.length && !selectedYears.includes(rowYear)) {
       return false;
     }
-    if (selectedCategories.length > 0 && !rowCats.some(cat => selectedCategories.includes(cat))) {
+    if (selectedCategories.length && !rowCats.some(cat => selectedCategories.includes(cat))) {
       return false;
     }
     return true;
   });
 
-  // Apply filters instantly on change
+  // Apply filters instantly on change, always update chart
   $('#yearFilter, #categoryFilter').on('change', function () {
     table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
+  // Clear filters and update chart
   $('#clearFiltersBtn').on('click', function() {
-    $('#yearFilter').val([]);
-    $('#categoryFilter').val([]);
+    $('#yearFilter').val([]).trigger('change');
+    $('#categoryFilter').val([]).trigger('change');
     table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
   // Row expand/collapse for recommended_action and attachments
