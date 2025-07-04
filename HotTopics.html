@@ -201,7 +201,7 @@ function filterByYear(data, year) {
 // --- Fetch and combine both files ---
 Promise.all([
   fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
-  fetch("data/2025_combined.json").then(res => res.json())
+  fetch("data/2025_cleaned.json").then(res => res.json())
 ]).then(([data1, data2]) => {
   // Combine arrays, ignoring if not array
   const allData = Array.isArray(data1) && Array.isArray(data2)
