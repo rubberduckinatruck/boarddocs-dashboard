@@ -12,6 +12,7 @@
     h1 { font-size: 2rem; margin-bottom: 1rem; }
     #filters { margin-bottom: 1rem; }
     canvas { max-width: 800px; margin: 2rem auto; display: block; }
+    select[multiple] { min-width: 130px; min-height: 2.1em; }
   </style>
 </head>
 <body>
@@ -33,9 +34,6 @@
   <div id="filters">
     <label>Filter by Year:
       <select id="yearFilter" multiple></select>
-    </label>
-    <label>Filter by Board Member:
-      <select id="memberFilter" multiple></select>
     </label>
     <label>Filter by Category:
       <select id="categoryFilter" multiple></select>
@@ -73,6 +71,33 @@ const chunkedFiles = [
   "data/master_2021_2024.json",
   "data/2025_combined.json"
 ];
+
+// Multi-category normalization function
+function normalizeCategories(cat) {
+  if (!cat) return [];
+  cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
+  const tags = [];
+  if (cat.match(/call to order/)) tags.push("Call to Order");
+  if (cat.match(/approval of minutes|meeting minutes|minutes/)) tags.push("Approval of Minutes");
+  if (cat.match(/action item/)) tags.push("Action Items");
+  if (cat.match(/executive session/)) tags.push("Executive Session");
+  if (cat.match(/consent agenda/)) tags.push("Consent Agenda");
+  if (cat.match(/presentations?/)) tags.push("Presentations");
+  if (cat.match(/recognitions?/)) tags.push("Recognitions");
+  if (cat.match(/future agenda items?/)) tags.push("Future Agenda Items");
+  if (cat.match(/adjournment|adjourn executive session/)) tags.push("Adjournment");
+  if (cat.match(/information|discussion/)) tags.push("Information/Discussion");
+  if (cat.match(/call to the public|call to public/)) tags.push("Call to the Public");
+  if (cat.match(/public hearing/)) tags.push("Public Hearing");
+  if (cat.match(/pledge of allegiance/)) tags.push("Pledge of Allegiance");
+  if (cat.match(/return to regular session/)) tags.push("Return to Regular Session");
+  if (cat.match(/work study|study session/)) tags.push("Study Session");
+  // Add more as needed...
+  // Fallback: push the original, title-cased (if no tags matched)
+  if (tags.length === 0 && cat)
+    tags.push(cat.replace(/\b\w/g, l => l.toUpperCase()));
+  return [...new Set(tags)];
+}
 
 let allAgendaItems = [];
 let table;
@@ -117,13 +142,15 @@ async function loadAllAgendaItems(files) {
           `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
         ).join(", ");
       }
+      // Multi-category tagging
+      const normCats = normalizeCategories(item.category);
 
       items.push({
         year: (meeting.meeting_date || "").slice(0, 4),
         meeting_date: meeting.meeting_date,
         agenda_number: item.number,
         title: item.title,
-        category: item.category,
+        category: normCats,
         type: item.type,
         recommended_action: item.recommendedAction,
         moved_by: moved_by,
@@ -141,21 +168,11 @@ async function loadAllAgendaItems(files) {
 
 function populateFilters(data) {
   const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort();
-  const members = new Set();
-  const categories = [...new Set(data.map(r => r.category).filter(Boolean))].sort();
-
-  // For member filter, you'd need to flatten all votes per item and get unique names:
-  data.forEach(row => {
-    // No per-member list in table, so skip for now unless you want to add it
-  });
+  const categories = [...new Set(data.flatMap(r => r.category || []) )].filter(Boolean).sort();
 
   for (const y of years) {
     $('#yearFilter').append(`<option value="${y}">${y}</option>`);
   }
-  // Remove member filter if not used, or keep blank
-  // for (const m of [...members].sort()) {
-  //   if (m) $('#memberFilter').append(`<option value="${m}">${m}</option>`);
-  // }
   for (const c of categories) {
     $('#categoryFilter').append(`<option value="${c}">${c}</option>`);
   }
@@ -193,7 +210,10 @@ function updateChart(data) {
       { data: "meeting_date" },
       { data: "agenda_number" },
       { data: "title" },
-      { data: "category" },
+      {
+        data: "category",
+        render: cats => Array.isArray(cats) ? cats.join(", ") : cats
+      },
       { data: "type" },
       { data: "recommended_action" },
       { data: "moved_by" },
@@ -211,12 +231,11 @@ function updateChart(data) {
   // Filters
   $('#yearFilter, #categoryFilter').on('change', function () {
     const y = $('#yearFilter').val();
-    // const m = $('#memberFilter').val(); // Remove if not used
     const c = $('#categoryFilter').val();
 
     const filtered = allAgendaItems.filter(r =>
       (!y || y.includes(r.year)) &&
-      (!c || c.includes(r.category))
+      (!c || (r.category || []).some(cat => c.includes(cat)))
     );
 
     table.clear().rows.add(filtered).draw();
@@ -226,7 +245,6 @@ function updateChart(data) {
   // Clear filters button
   $('#clearFiltersBtn').on('click', function() {
     $('#yearFilter').val([]);
-    // $('#memberFilter').val([]);
     $('#categoryFilter').val([]);
     table.clear().rows.add(allAgendaItems).draw();
     updateChart(allAgendaItems);
