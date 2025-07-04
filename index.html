@@ -13,6 +13,25 @@
     #filters { margin-bottom: 1rem; }
     canvas { max-width: 800px; margin: 2rem auto; display: block; }
     select[multiple] { min-width: 130px; min-height: 2.1em; }
+    .truncate-cell {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    tr.expanded .truncate-cell {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: initial !important;
+      max-width: 900px !important;
+      word-break: break-word;
+      background: #f8f8f8;
+      z-index: 2;
+      position: relative;
+    }
+    tr.expanded { background: #fafafa !important; }
   </style>
 </head>
 <body>
@@ -215,7 +234,16 @@ function updateChart(data) {
         render: cats => Array.isArray(cats) ? cats.join(", ") : cats
       },
       { data: "type" },
-      { data: "recommended_action" },
+      {
+        data: "recommended_action",
+        render: function (data, type, row, meta) {
+          if (!data) return "";
+          if (type === 'display') {
+            return `<div class="truncate-cell" title="Click row to expand/collapse">${data}</div>`;
+          }
+          return data;
+        }
+      },
       { data: "moved_by" },
       { data: "seconded_by" },
       { data: "vote_result" },
@@ -248,6 +276,11 @@ function updateChart(data) {
     $('#categoryFilter').val([]);
     table.clear().rows.add(allAgendaItems).draw();
     updateChart(allAgendaItems);
+  });
+
+  // Row expand/collapse for recommended_action
+  $('#agendaTable tbody').on('click', 'tr', function () {
+    $(this).toggleClass('expanded');
   });
 })();
 </script>
