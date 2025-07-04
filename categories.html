@@ -8,8 +8,25 @@
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    body { font-family: sans-serif; margin: 0; }
+    #layout { display: flex; min-height: 100vh; }
+    #sidebar {
+      width: 240px;
+      background: #f8fafc;
+      border-right: 1px solid #eee;
+      padding: 2rem 1.5rem 2rem 1.5rem;
+      min-height: 100vh;
+      position: sticky; top: 0;
+      font-size: 1rem;
+    }
+    #sidebar h3 { font-size: 1.05em; margin-top: 1.8em; margin-bottom: 0.7em; }
+    #sidebar label { display: block; margin: 0.14em 0; cursor: pointer; }
+    #sidebar .filters-section { margin-bottom: 1.2em; }
+    #main-content {
+      flex: 1; padding: 2rem;
+      background: #fff;
+      min-width: 0; /* for flexbox overflow fix */
+    }
     .chart-container {
       max-width: 700px;
       margin: 2rem auto;
@@ -20,18 +37,18 @@
       max-width: 100%;
       display: block;
     }
-    #filters label { display: inline-block; margin-right: 2em; }
-    #filters select[multiple] {
-      min-width: 150px; min-height: 7em; background: #fafcff; border: 1px solid #ddd;
-      font-size: 1rem; margin-right: 1em; margin-bottom: 0.6em;
-    }
     #categorySelect { font-size: 1rem; padding: 0.3rem 1rem; }
     #categoryTable { width: 100%; margin-top: 2rem; }
     tfoot input { width: 98%; padding: 2px; box-sizing: border-box; }
+    .filter-group-title {
+      font-weight: bold; font-size: 1.02em; margin: 1.2em 0 0.4em 0; color: #444;
+    }
+    .clear-link {
+      color: #0074d9; text-decoration: underline; font-size: 0.97em; cursor: pointer; margin-left: 0.6em;
+    }
   </style>
 </head>
 <body>
-  <!-- Nav -->
   <div id="nav-placeholder"></div>
   <script>
     fetch("nav.html")
@@ -40,61 +57,70 @@
         document.getElementById("nav-placeholder").innerHTML = data;
       });
   </script>
+  <div id="layout">
+    <div id="sidebar">
+      <h2 style="font-size:1.25em;margin:0 0 1em 0;">Filters</h2>
+      <div class="filters-section" id="yearFilterSection">
+        <span class="filter-group-title">Year <span class="clear-link" id="clearYear">Clear</span></span>
+        <div id="yearFilterList"></div>
+      </div>
+      <div class="filters-section" id="tagFilterSection">
+        <span class="filter-group-title">Tag <span class="clear-link" id="clearTag">Clear</span></span>
+        <div id="tagFilterList"></div>
+      </div>
+      <div class="filters-section" id="categoryFilterSection">
+        <span class="filter-group-title">Category <span class="clear-link" id="clearCategory">Clear</span></span>
+        <div id="categoryFilterList"></div>
+      </div>
+      <button id="clearAllFiltersBtn" style="margin-top:1.2em; width:90%;">Clear All Filters</button>
+    </div>
+    <div id="main-content">
+      <h1>Category Frequency</h1>
+      <p>
+        <b>Purpose:</b> Explore which categories are most used (e.g. Personnel, Consent, Policy)<br>
+        <b>Actionable Uses:</b><br>
+        Spot under-discussed areas (e.g. curriculum rarely updated?)<br>
+        Show trends in what board prioritizes over time
+      </p>
 
-  <h1>Category Frequency</h1>
-  <p>
-    <b>Purpose:</b> Explore which categories are most used (e.g. Personnel, Consent, Policy)<br>
-    <b>Actionable Uses:</b><br>
-    Spot under-discussed areas (e.g. curriculum rarely updated?)<br>
-    Show trends in what board prioritizes over time
-  </p>
+      <div class="chart-container">
+        <canvas id="pieChart"></canvas>
+      </div>
+      <div style="text-align:center; margin-bottom:1rem;">
+        <label for="categorySelect"><b>See Trends By Category:</b> </label>
+        <select id="categorySelect"></select>
+      </div>
+      <div class="chart-container">
+        <canvas id="barChart"></canvas>
+      </div>
 
-  <div id="filters" style="margin:1.5rem 0;">
-    <label>Filter by Year:
-      <select id="yearFilter" multiple></select>
-    </label>
-    <label>Filter by Tag:
-      <select id="tagFilter" multiple></select>
-    </label>
-    <button id="clearFiltersBtn">Clear Filters</button>
+      <h3 id="tableTitle" style="margin-top:2rem;">Agenda Items in <span id="categoryName"></span></h3>
+      <table id="categoryTable" class="display">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Tags</th>
+            <th>Red Flag</th>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <th>Date</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Tags</th>
+            <th>Red Flag</th>
+          </tr>
+        </tfoot>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
-
-  <div class="chart-container">
-    <canvas id="pieChart"></canvas>
-  </div>
-  <div style="text-align:center; margin-bottom:1rem;">
-    <label for="categorySelect"><b>See Trends By Category:</b> </label>
-    <select id="categorySelect"></select>
-  </div>
-  <div class="chart-container">
-    <canvas id="barChart"></canvas>
-  </div>
-
-  <h3 id="tableTitle" style="margin-top:2rem;">Agenda Items in <span id="categoryName"></span></h3>
-  <table id="categoryTable" class="display">
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Title</th>
-        <th>Type</th>
-        <th>Tags</th>
-        <th>Red Flag</th>
-      </tr>
-    </thead>
-    <tfoot>
-      <tr>
-        <th>Date</th>
-        <th>Title</th>
-        <th>Type</th>
-        <th>Tags</th>
-        <th>Red Flag</th>
-      </tr>
-    </tfoot>
-    <tbody></tbody>
-  </table>
 
 <script>
-// --- Strict normalization ---
+// --- Category normalization ---
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
@@ -141,14 +167,19 @@ function getAllYears(data) {
 }
 
 function getAllTags(data) {
-  // If using union_impact_tags, change .tags to .union_impact_tags
   const tagSet = new Set();
-  data.forEach(item => {
-    (Array.isArray(item.tags) ? item.tags : []).forEach(tag => {
-      if (tag) tagSet.add(tag);
-    });
-  });
+  data.forEach(item => (Array.isArray(item.tags) ? item.tags : []).forEach(tag => { if (tag) tagSet.add(tag); }));
   return Array.from(tagSet).sort();
+}
+
+function getAllCategories(data) {
+  // Get all normalized categories present
+  const catSet = new Set();
+  data.forEach(item => {
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    cats.forEach(c => { if (c) catSet.add(c); });
+  });
+  return Array.from(catSet).sort();
 }
 
 function countByYear(data, category) {
@@ -179,10 +210,7 @@ function updatePieChart(counts) {
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        title: {
-          display: true,
-          text: "Most Frequent Categories (Filtered)"
-        }
+        title: { display: true, text: "Most Frequent Categories (Filtered)" }
       }
     }
   });
@@ -206,14 +234,9 @@ function updateBarChart(yearCounts, category) {
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        title: {
-          display: true,
-          text: `Yearly Frequency: ${category} (Filtered)`
-        }
+        title: { display: true, text: `Yearly Frequency: ${category} (Filtered)` }
       },
-      scales: {
-        y: { beginAtZero:true }
-      }
+      scales: { y: { beginAtZero:true } }
     }
   });
 }
@@ -256,26 +279,24 @@ function updateTable(data, category) {
   });
 }
 
-// Filtering function
-function filterData(allAgendaItems, selectedYears, selectedTags) {
+function filterData(allAgendaItems, selectedYears, selectedTags, selectedCats) {
   return allAgendaItems.filter(item => {
-    // Year filter
     const year = (item.meeting_date || '').slice(0,4);
     if (selectedYears.length && !selectedYears.includes(year)) return false;
-    // Tag filter
     if (selectedTags.length) {
       if (!Array.isArray(item.tags) || !item.tags.some(tag => selectedTags.includes(tag))) return false;
     }
+    const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+    if (selectedCats.length && !cats.some(cat => selectedCats.includes(cat))) return false;
     return true;
   });
 }
 
-// MAIN DATA LOAD: fetch and merge both files, flatten agenda_items
+// --- MAIN LOAD ---
 Promise.all([
   fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
   fetch("data/2025_cleaned.json").then(res => res.json())
 ]).then(([data1, data2]) => {
-  // Merge and flatten
   let meetings = Array.isArray(data1) && Array.isArray(data2)
     ? [...data1, ...data2]
     : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
@@ -293,22 +314,27 @@ Promise.all([
     tags: Array.isArray(item.tags) ? item.tags : []
   }));
 
-  // Populate year and tag filters
-  const years = getAllYears(allAgendaItems);
-  const tags = getAllTags(allAgendaItems);
-  $('#yearFilter').empty();
-  $('#tagFilter').empty();
-  for (const y of years) $('#yearFilter').append(`<option value="${y}">${y}</option>`);
-  for (const t of tags) $('#tagFilter').append(`<option value="${t}">${t}</option>`);
+  // Populate checkboxes for all filter groups
+  function populateCheckboxes(list, group, idPrefix) {
+    $(list).empty();
+    group.forEach(val => {
+      const safe = idPrefix + '_' + val.replace(/[^a-z0-9]/gi, '_');
+      $(list).append(`<label><input type="checkbox" value="${val}" id="${safe}"/> ${val}</label>`);
+    });
+  }
 
-  // Filtering logic
+  function getCheckedVals(selector) {
+    return $(`${selector} input[type=checkbox]:checked`).map(function(){ return this.value; }).get();
+  }
+
   function refreshView() {
-    const selectedYears = $('#yearFilter').val() || [];
-    const selectedTags = $('#tagFilter').val() || [];
-    const filteredItems = filterData(allAgendaItems, selectedYears, selectedTags);
+    const selectedYears = getCheckedVals("#yearFilterList");
+    const selectedTags = getCheckedVals("#tagFilterList");
+    const selectedCats = getCheckedVals("#categoryFilterList");
+    const filteredItems = filterData(allAgendaItems, selectedYears, selectedTags, selectedCats);
     const catCounts = countCategories(filteredItems);
 
-    // If no categories, blank the view
+    // Update pie
     if (!Object.keys(catCounts).length) {
       if (pieChart) pieChart.destroy();
       if (barChart) barChart.destroy();
@@ -316,16 +342,14 @@ Promise.all([
       updateTable([], "");
       return;
     }
-
     updatePieChart(catCounts);
 
-    // Re-populate category select with only categories in filtered view
+    // Repopulate category select
     const sortedCats = Object.keys(catCounts).sort();
     $("#categorySelect").empty();
     for (const cat of sortedCats) {
       $("#categorySelect").append(`<option value="${cat}">${cat}</option>`);
     }
-
     let initialCat = $("#categorySelect").val() || sortedCats[0];
     $("#categorySelect").val(initialCat);
 
@@ -341,16 +365,34 @@ Promise.all([
     });
   }
 
-  // Initial render
-  refreshView();
+  // Populate sidebar checkboxes
+  populateCheckboxes("#yearFilterList", getAllYears(allAgendaItems), "yr");
+  populateCheckboxes("#tagFilterList", getAllTags(allAgendaItems), "tag");
+  populateCheckboxes("#categoryFilterList", getAllCategories(allAgendaItems), "cat");
 
-  // On filter change
-  $('#yearFilter, #tagFilter').on('change', refreshView);
-  $('#clearFiltersBtn').on('click', function() {
-    $('#yearFilter').val([]).trigger('change');
-    $('#tagFilter').val([]).trigger('change');
+  // Checkbox events
+  $('#yearFilterList, #tagFilterList, #categoryFilterList').on('change', 'input[type=checkbox]', refreshView);
+
+  // Clear links
+  $('#clearYear').on('click', function() {
+    $('#yearFilterList input[type=checkbox]').prop('checked', false);
     refreshView();
   });
+  $('#clearTag').on('click', function() {
+    $('#tagFilterList input[type=checkbox]').prop('checked', false);
+    refreshView();
+  });
+  $('#clearCategory').on('click', function() {
+    $('#categoryFilterList input[type=checkbox]').prop('checked', false);
+    refreshView();
+  });
+  $('#clearAllFiltersBtn').on('click', function() {
+    $('#sidebar input[type=checkbox]').prop('checked', false);
+    refreshView();
+  });
+
+  // Initial render
+  refreshView();
 });
 </script>
 </body>
