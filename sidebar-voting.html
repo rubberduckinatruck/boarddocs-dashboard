@@ -2,6 +2,28 @@
 <div id="sidebar">
   <h2 style="font-size:1.25em; margin:0 0 1em 0;">Voting Dashboard</h2>
 
+  <!-- Move Voting Filters Here -->
+  <div id="memberFilter" style="margin-bottom:1.3em;">
+    <label>
+      <input type="checkbox" id="showCurrentOnly" />
+      Show only current board members
+      <span class="current-star" title="Current Member">★</span>
+    </label>
+  </div>
+  <div id="additionalFilters" style="margin-bottom:1.8em;">
+    <label>
+      <input type="checkbox" id="showPastYearOnly" />
+      Show only past year of votes
+    </label>
+    <br>
+    <label style="margin-top:0.8em;">
+      Types:
+      <select id="typeFilter" multiple style="margin-top:0.15em;">
+        <!-- Populated by JS with all unique types -->
+      </select>
+    </label>
+  </div>
+
   <div style="margin-bottom:2em;">
     <div style="font-size:1.07em; margin-bottom:0.6em;"><b>Legend:</b></div>
     <ul style="list-style:none; padding-left:0; margin:0;">
@@ -12,17 +34,6 @@
   </div>
 
   <div style="font-size:0.99em; color:#666;">
-    <b>Tip:</b> Use filters above the chart/table to see voting patterns by member, type, or year.
+    <b>Tip:</b> Use filters to see voting patterns by member, type, or year.
   </div>
-
-  <!-- Optional: Quick nav to board member profiles
-  <div style="margin-top:2.5em;">
-    <div style="font-size:1.03em; margin-bottom:0.5em; font-weight:bold;">Jump to Member:</div>
-    <ul style="padding-left:1.1em; font-size:0.99em; line-height:1.55;">
-      <li><a href="profile.html?member=Sarah%20Silk">Sarah Silk</a></li>
-      <li><a href="profile.html?member=Corby%20Naylor">Corby Naylor</a></li>
-      <!-- Add more as needed -->
-    </ul>
-  </div>
-  -->
 </div>
