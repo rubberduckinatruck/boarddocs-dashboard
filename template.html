@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – [Your Page Title]</title>
+  <!-- DO NOT EDIT: Standard Vendor Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    /* DO NOT EDIT: Shared dashboard layout styles */
+    body { font-family: sans-serif; margin: 0; }
+    #layout { display: flex; min-height: 100vh; }
+    #sidebar {
+      width: 240px;
+      background: #f8fafc;
+      border-right: 1px solid #eee;
+      padding: 2rem 1.5rem 2rem 1.5rem;
+      min-height: 100vh;
+      position: sticky; top: 0;
+      font-size: 1rem;
+    }
+    #main-content {
+      flex: 1; padding: 2rem;
+      background: #fff;
+      min-width: 0;
+    }
+    /* CUSTOMIZE BELOW: Add dashboard-specific styles if needed */
+  </style>
+</head>
+<body>
+  <!-- DO NOT EDIT: Shared Navigation Loader -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <!-- DO NOT EDIT: Standard Layout Structure -->
+  <div id="layout">
+    <div id="sidebar-placeholder"></div>
+    <script>
+      // DO NOT EDIT: Standard sidebar loader; just change [yourpage] for each dashboard
+      fetch("sidebar-[yourpage].html")
+        .then(res => res.text())
+        .then(data => {
+          document.getElementById("sidebar-placeholder").innerHTML = data;
+        });
+    </script>
+    <div id="main-content">
+      <!-- ======================================================
+      = CUSTOMIZE THIS SECTION FOR YOUR DASHBOARD'S MAIN DISPLAY =
+      ===========================================================
+      What belongs here:
+        • Your page's main title (`<h1>`)
+        • Explanatory text for users, if needed
+        • Chart containers (`<canvas>` or `<div class="chart-container">`)
+        • Data tables (`<table>`) for displaying results
+        • Any dashboard-specific *display* elements
+
+      What does NOT belong here:
+        ✗ Filter controls (checkboxes, selects, etc.) -- those are in your sidebar include
+        ✗ Raw data loading or normalization code
+        ✗ App logic scripts (put those in the JS <script> block at the end)
+
+      Example (replace/remove as needed):
+      -->
+      <h1>[Your Dashboard Title]</h1>
+      <p><b>Purpose:</b> [Describe the purpose of this dashboard in one sentence]</p>
+      <div class="chart-container">
+        <canvas id="mainChart"></canvas>
+      </div>
+      <table id="mainTable">
+        <thead>
+          <tr>
+            <th>Column A</th>
+            <th>Column B</th>
+            <!-- Add more columns as needed -->
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JS will populate table rows -->
+        </tbody>
+      </table>
+      <!-- =========================================================
+         End CUSTOMIZE main-content area for this page's dashboard.
+         DO NOT add any filter controls here!
+      ========================================================== -->
+    </div>
+  </div>
+
+  <!-- DO NOT EDIT: Data normalization utilities (always include before your main logic) -->
+  <script src="data-normalization.js"></script>
+
+  <!-- DO NOT EDIT: Shared Data Loading/Flattening/Normalization Logic -->
+  <script>
+    Promise.all([
+      fetch("data/master_2013to2024_cleaned.json").then(res => res.json()),
+      fetch("data/2025_cleaned.json").then(res => res.json())
+    ]).then(([data1, data2]) => {
+      let allAgendaItems = [];
+      const allMeetings = Array.isArray(data1) && Array.isArray(data2)
+        ? [...data1, ...data2]
+        : (Array.isArray(data1) ? data1 : []).concat(Array.isArray(data2) ? data2 : []);
+      for (const meeting of allMeetings) {
+        if (Array.isArray(meeting.agenda_items)) {
+          for (const item of meeting.agenda_items) {
+            allAgendaItems.push({
+              ...item,
+              meeting_date: meeting.meeting_date
+            });
+          }
+        }
+      }
+      // DO NOT EDIT: Normalize category and type ONCE for the entire site
+      allAgendaItems = allAgendaItems.map(item => ({
+        ...item,
+        category: Array.isArray(item.category)
+          ? item.category
+          : normalizeCategories(item.category),
+        type: normalizeType(item.type)
+      }));
+
+      // -----------------------------------------------------------------------
+      // CUSTOMIZE BELOW: DASHBOARD-SPECIFIC LOGIC GOES HERE
+      //
+      // This is where you:
+      //   • Render charts and tables that are unique to THIS page
+      //   • Populate dropdowns/checklists in the sidebar (the DOM controls are in the sidebar HTML)
+      //   • Add event listeners for sidebar filters (like #typeFilter)
+      //   • Write the logic that decides what data is shown, how it is grouped, etc.
+      //
+      // DO NOT repeat data loading/normalization in this section!
+      // DO NOT add filter controls to the main content area!
+      //
+      // EXAMPLES (delete/replace as needed):
+      //
+      //   const allTypes = [...new Set(allAgendaItems.map(item => item.type).filter(Boolean))].sort();
+      //   allTypes.forEach(type => {
+      //     $('#typeFilter').append(`<option value="${type}">${type}</option>`);
+      //   });
+      //
+      //   $('#typeFilter').on('change', function() {
+      //     // Your page-specific filter/apply logic here
+      //   });
+      //
+      //   // Render tables, charts, etc. based on filtered allAgendaItems
+      // -----------------------------------------------------------------------
+    });
+  </script>
+</body>
+</html>
