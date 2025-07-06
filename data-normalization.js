@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Voting Trends</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #layout { display: flex; min-height: 100vh; }
+    #sidebar {
+      width: 240px;
+      background: #f8fafc;
+      border-right: 1px solid #eee;
+      padding: 2rem 1.5rem 2rem 1.5rem;
+      min-height: 100vh;
+      position: sticky; top: 0;
+      font-size: 1rem;
+    }
+    #sidebar h3 { font-size: 1.05em; margin-top: 1.8em; margin-bottom: 0.7em; }
+    #sidebar label { display: block; margin: 0.14em 0; cursor: pointer; }
+    #sidebar .filters-section { margin-bottom: 1.2em; }
+    #main-content {
+      flex: 1; padding: 2rem;
+      background: #fff;
+      min-width: 0;
+    }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
+    a.member-link:hover { color:#1976d2; }
+    .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
+    .current-highlight { background: #e9faea !important; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
+    table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
+    th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
+    th { background-color: #f4f4f4; }
+    select[multiple] {
+      min-width: 130px;
+      min-height: 5.5em;
+      background: #fafcff;
+      border: 1px solid #ddd;
+      font-size: 0.95rem;
+      margin-bottom: 0.6em;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation include -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <!-- Main layout: sidebar + main content -->
+  <div id="layout">
+    <!-- Sidebar include: now loads sidebar-voting.html with filters -->
+    <div id="sidebar-placeholder"></div>
+    <script>
+      fetch("sidebar-voting.html")
+        .then(res => res.text())
+        .then(data => {
+          document.getElementById("sidebar-placeholder").innerHTML = data;
+        });
+    </script>
+    <!-- Main content area -->
+    <div id="main-content">
+      <h1>Board Voting Trends</h1>
+      <script>
+        document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+      </script>
+      <p><b>Purpose:</b> View how each member votes over time</p>
+      <p><b>Actionable Uses:</b><br>
+        Strengthen public testimony with member-specific data<br>
+        Identify allies/opponents for advocacy efforts</p>
+      <p><b>Purpose:</b> Track how often controversial items are split votes vs unanimous</p>
+      <p><b>Actionable Uses:</b><br>
+        Identify "swing" board members<br>
+        Flag when patterns shift after elections</p>
+      <canvas id="voteBreakdownChart"></canvas>
+      <table id="voteTable">
+        <thead>
+          <tr>
+            <th>Board Member</th>
+            <th>Yes Votes</th>
+            <th>No Votes</th>
+            <th>Abstain Votes</th>
+            <th>Total Votes</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+  // --- CATEGORY NORMALIZATION ---
+  function normalizeCategories(cat) {
+    if (!cat) return ["Other"];
+    cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
+    const map = [
+      { tag: "Call to Order", regex: /call to order/ },
+      { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
+      { tag: "Information", regex: /information|discussion|presentation|informational/ },
+      { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
+      { tag: "Call to the Public", regex: /call to the public|public comments?/ },
+      { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
+      { tag: "Action Items", regex: /action items?/ },
+      { tag: "Consent Agenda Items", regex: /consent agenda/ },
+      { tag: "Future Agenda Items", regex: /future agenda/ },
+      { tag: "Return to Regular Session", regex: /return to regular session|reconvene|resturn to regular session|reconvene regular board meeting|reconvene meeting|reconvene the regular board meeting|reconvene to regular session/ },
+      { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
+      { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
+      { tag: "Public Hearing", regex: /public hearing/ },
+      { tag: "Recognitions", regex: /recognitions?/ },
+      { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
+      { tag: "Board Advisory Committee", regex: /advisory committee/ }
+    ];
+    const tags = [];
+    for (let m of map) {
+      if (cat.match(m.regex)) tags.push(m.tag);
+    }
+    if (tags.length === 0) tags.push("Other");
+    return [...new Set(tags)];
+  }
+
+  // --- TYPE NORMALIZATION ---
+  function normalizeType(type) {
+    if (!type) return "Other";
+    type = type.trim().toLowerCase();
+    if (type.match(/consent/)) return "Consent Agenda";
+    if (type.match(/personnel/)) return "Personnel";
+    if (type.match(/information/)) return "Information";
+    if (type.match(/policy/)) return "Policy";
+    if (type.match(/action/)) return "Action Item";
+    if (type.match(/minutes/)) return "Minutes";
+    if (type.match(/financial|finance/)) return "Finance";
+    return type.replace(/\b\w/g, l => l.toUpperCase()); // Fallback: Title Case
+  }
+
+  const chunkedFiles = [
+    "data/master_2013to2024_cleaned.json",
+    "data/2025_cleaned.json"
+  ];
+
+  // Add all historical and current members here (expand as needed)
+  const BOARD_MEMBERS = [
+    { name: "Sarah Silk",           term_start: 2025, term_end: 2028 },
+    { name: "Corby Naylor",         term_start: 2025, term_end: 2028 },
+    { name: "Eric Cultum",          term_start: 2023, term_end: 2026 },
+    { name: "Kristen Acton",        term_start: 2021, term_end: 2028 },
+    { name: "Vickie Landis",        term_start: 2015, term_end: 2026 },
+    { name: "Trey Terry",           term_start: 2021, term_end: 2024 },
+    { name: "Gina DeCoste",         term_start: 2015, term_end: 2024 },
+    { name: "Maxine Hill",          term_start: 2015, term_end: 2022 },
+    { name: "Mariana Sandoval",     term_start: 2017, term_end: 2020 },
+    { name: "Mary Kay Utecht",      term_start: 2017, term_end: 2020 },
+    { name: "Tom Rosztoczy",        term_start: 2011, term_end: 2016 },
+    { name: "Ron Whitney",          term_start: 2009, term_end: 2015 }
+  ];
+
+  const CURRENT_YEAR = new Date().getFullYear();
+
+  function isCurrentMember(member) {
+    return member.term_start <= CURRENT_YEAR && member.term_end >= CURRENT_YEAR;
+  }
+
+  function sortMembers(members) {
+    return [...members].sort((a, b) => {
+      const aCurrent = isCurrentMember(a);
+      const bCurrent = isCurrentMember(b);
+      if (aCurrent !== bCurrent) return bCurrent - aCurrent; // true first
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  let allMeetings = [];
+  let allTypes = [];
+
+  async function loadAllMeetings(files) {
+    const meetings = [];
+    for (let file of files) {
+      try {
+        const resp = await fetch(file);
+        const json = await resp.json();
+        meetings.push(...json);
+      } catch (e) {
+        console.error("Failed to load", file, e);
+      }
+    }
+    return meetings;
+  }
+
+  // Get unique, normalized types from all loaded meetings
+  function getAllUniqueTypes(meetings) {
+    const typeSet = new Set();
+    meetings.forEach(meeting => {
+      (meeting.agenda_items || []).forEach(item => {
+        if (item.type && item.type.trim()) {
+          typeSet.add(normalizeType(item.type));
+        }
+      });
+    });
+    return Array.from(typeSet).sort();
+  }
+
+  // Consent agenda fix: only count the "consideration of approval" item for consent, not sub-items
+  function tallyVotesWithFilters(meetings, {pastYearOnly, typeSet}) {
+    const voteTally = {};
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    meetings.forEach(meeting => {
+      // Date filter
+      const meetingDate = new Date(meeting.meeting_date);
+      if (pastYearOnly && meetingDate < oneYearAgo) return;
+
+      (meeting.agenda_items || []).forEach(item => {
+        // --- Use normalized type for filtering ---
+        const itemType = normalizeType(item.type);
+        if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
+
+        // Example: Use normalized categories if needed
+        // const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+
+        const cat = item.category ? item.category.toLowerCase() : "";
+        const title = item.title ? item.title.toLowerCase() : "";
+        const isConsentTop = (
+          cat.includes("consent agenda") &&
+          title.includes("consideration of approval")
+        );
+        const isConsentSub = (
+          cat.includes("consent agenda") &&
+          !title.includes("consideration of approval")
+        );
+        const mv = item.motion_and_voting || {};
+        const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+        if (isConsentTop) {
+          votesArr.forEach(v => {
+            if (!v || !v.name || !v.vote) return;
+            if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+            if (v.vote === "Yes") voteTally[v.name].yes++;
+            else if (v.vote === "No") voteTally[v.name].no++;
+            else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+          });
+        } else if (!isConsentSub) {
+          votesArr.forEach(v => {
+            if (!v || !v.name || !v.vote) return;
+            if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+            if (v.vote === "Yes") voteTally[v.name].yes++;
+            else if (v.vote === "No") voteTally[v.name].no++;
+            else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+          });
+        }
+      });
+    });
+    return voteTally;
+  }
+
+  let voteTally = {};
+  let sortedMembers = [];
+
+  function renderTableAndChart(members) {
+    // Build table data and row class for current members
+    const tableData = members.map(member => {
+      const yes = voteTally[member.name]?.yes || 0;
+      const no = voteTally[member.name]?.no || 0;
+      const abstain = voteTally[member.name]?.abstain || 0;
+      const total = yes + no + abstain;
+      const nameLink = `<a class="member-link" href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>`;
+      const star = isCurrentMember(member)
+        ? '<span class="current-star" title="Current Board Member">★</span>'
+        : '';
+      return [
+        nameLink + ' ' + star,
+        yes, no, abstain, total
+      ];
+    });
+
+    // DataTable with or without reset
+    if ($.fn.DataTable.isDataTable('#voteTable')) {
+      const dt = $('#voteTable').DataTable();
+      dt.clear().rows.add(tableData).draw();
+      // Highlight current members
+      $('#voteTable tbody tr').each(function(idx) {
+        if (isCurrentMember(members[idx])) $(this).addClass('current-highlight');
+        else $(this).removeClass('current-highlight');
+      });
+    } else {
+      $('#voteTable').DataTable({
+        data: tableData,
+        columns: [
+          { title: "Board Member" },
+          { title: "Yes Votes" },
+          { title: "No Votes" },
+          { title: "Abstain Votes" },
+          { title: "Total Votes" }
+        ],
+        paging: false,
+        searching: false,
+        info: false,
+        createdRow: function(row, data, dataIndex) {
+          if (isCurrentMember(members[dataIndex])) {
+            $(row).addClass('current-highlight');
+          }
+        }
+      });
+    }
+
+    // Chart
+    const names = members.map(m =>
+      isCurrentMember(m) ? `${m.name} ★` : m.name
+    );
+    const yesCounts = members.map(m => voteTally[m.name]?.yes || 0);
+    const noCounts = members.map(m => voteTally[m.name]?.no || 0);
+    const abstainCounts = members.map(m => voteTally[m.name]?.abstain || 0);
+
+    if (window.voteProfileChart) window.voteProfileChart.destroy();
+    const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
+    window.voteProfileChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: names,
+        datasets: [
+          {
+            label: "Yes Votes",
+            data: yesCounts,
+            backgroundColor: "#2ecc71"
+          },
+          {
+            label: "No Votes",
+            data: noCounts,
+            backgroundColor: "#e74c3c"
+          },
+          {
+            label: "Abstain Votes",
+            data: abstainCounts,
+            backgroundColor: "#f1c40f"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: "Board Member Voting Totals"
+          },
+          legend: {
+            position: "top"
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Vote Count"
+            }
+          }
+        }
+      }
+    });
+  }
+
+  (async function() {
+    allMeetings = await loadAllMeetings(chunkedFiles);
+    allTypes = getAllUniqueTypes(allMeetings);
+
+    // Populate type filter (in the sidebar) with cleaned types
+    allTypes.forEach(type => {
+      $('#typeFilter').append(`<option value="${type}">${type}</option>`);
+    });
+
+    sortedMembers = sortMembers(BOARD_MEMBERS);
+
+    // Default: all votes/all types/all time
+    voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: false, typeSet: new Set()});
+    renderTableAndChart(sortedMembers);
+
+    // Filter logic
+    function applyAllFilters() {
+      const pastYear = $('#showPastYearOnly').is(':checked');
+      const typeSet = new Set($('#typeFilter').val() || []);
+      voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: pastYear, typeSet});
+      // Apply member filter too
+      const filtered = $('#showCurrentOnly').is(':checked')
+        ? sortedMembers.filter(isCurrentMember)
+        : sortedMembers;
+      renderTableAndChart(filtered);
+    }
+
+    // Listeners for all filters (now in the sidebar)
+    $('#showCurrentOnly, #showPastYearOnly, #typeFilter').on('change', applyAllFilters);
+  })();
+  </script>
+</body>
+</html>
