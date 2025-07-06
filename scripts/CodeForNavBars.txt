@@ -1,0 +1,33 @@
+How to Use:
+Save this as SIDEBAR-VOTING.html in the same directory as your main HTML files.
+
+In your Voting Trends page, ensure your fetch call loads this file:
+
+js
+Copy
+Edit
+fetch("sidebar-voting.html")
+  .then(res => res.text())
+  .then(data => {
+    document.getElementById("sidebar-placeholder").innerHTML = data;
+  });
+Feel free to customize! You can add links, extra info, or anything else relevant to your board voting dashboard.
+If you ever add more filter options for Voting Trends, just expand this sidebar.
+
+
+
+
+How to Use:
+Save this file as SIDEBAR-CATEGORIES.html in your project.
+
+In your Categories dashboard page, load it dynamically:
+
+js
+Copy
+Edit
+fetch("sidebar-categories.html")
+  .then(res => res.text())
+  .then(data => {
+    document.getElementById("sidebar-placeholder").innerHTML = data;
+  });
+Your JS will automatically populate the yearFilterList, tagFilterList, and categoryFilterList as before.
