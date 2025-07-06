@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>AF BoardDocs Dash – Categories</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <style>
     body { font-family: sans-serif; margin: 0; background: #fafbfc; }
@@ -59,13 +60,21 @@
     table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
     th, td { padding: 0.5rem; text-align: left; border: 1px solid #ddd; }
     th { background-color: #f4f4f4; }
-    .category-header {
-      font-size: 1.25em;
-      margin-top: 2em;
-      color: #1c59b4;
+    .filter-list {
+      max-height: 140px;
+      overflow-y: auto;
+      background: #fff;
+      border-radius: 0.3em;
+      padding: 0.3em 0.3em 0.2em 0.6em;
+      border: 1px solid #e3e9ef;
     }
-    .item-list { margin-bottom: 2em; }
-    .item-row { padding-left: 1em; font-size: 1em; margin-bottom: 0.5em; }
+    .filter-list label {
+      display: block;
+      margin-bottom: 0.2em;
+      font-weight: normal;
+      font-size: 0.97em;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -83,24 +92,32 @@
       <h2 style="font-size:1.25em;margin:0 0 1em 0;">Filters</h2>
       <div class="filters-section" id="yearFilterSection">
         <span class="filter-group-title">Year <span class="clear-link" id="clearYear">Clear</span></span>
-        <div id="yearFilterList"></div>
+        <div class="filter-list" id="yearFilterList"></div>
       </div>
       <div class="filters-section" id="tagFilterSection">
         <span class="filter-group-title">Tag <span class="clear-link" id="clearTag">Clear</span></span>
-        <div id="tagFilterList"></div>
+        <div class="filter-list" id="tagFilterList"></div>
       </div>
       <div class="filters-section" id="categoryFilterSection">
         <span class="filter-group-title">Category <span class="clear-link" id="clearCategory">Clear</span></span>
-        <div id="categoryFilterList"></div>
+        <div class="filter-list" id="categoryFilterList"></div>
       </div>
       <button id="clearAllFiltersBtn">Clear All Filters</button>
     </div>
 
     <div id="main">
-      <h1>Agenda Items by Category</h1>
-      <div id="categoriesOutput">
-        <!-- Dynamic category tables/lists will go here -->
-      </div>
+      <h1>Agenda Items</h1>
+      <table id="categoriesTable">
+        <thead>
+          <tr>
+            <th>Meeting Date</th>
+            <th>Category</th>
+            <th>Title</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -111,13 +128,13 @@ const chunkedFiles = [
 ];
 let allMeetings = [];
 const filterState = {
-  year: null,
-  tag: null,
-  category: null
+  years: [],
+  tags: [],
+  categories: []
 };
 
 function getAllAgendaItems(meetings) {
-  // Flattens all agenda items from all meetings, adding meeting_date for each
+  // Flatten agenda items, each with parent meeting_date
   return meetings.flatMap(m =>
     (m.agenda_items || []).map(item => ({
       ...item,
@@ -127,7 +144,7 @@ function getAllAgendaItems(meetings) {
 }
 
 function populateSidebarFilters(meetings) {
-  // YEAR
+  // YEARS
   const years = new Set();
   meetings.forEach(m => {
     const y = (m.meeting_date || '').slice(0,4);
@@ -135,11 +152,11 @@ function populateSidebarFilters(meetings) {
   });
   $('#yearFilterList').html(
     Array.from(years).sort((a, b) => b - a).map(year =>
-      `<div><label><input type="radio" name="yearFilter" value="${year}"> ${year}</label></div>`
+      `<label><input type="checkbox" name="yearFilter" value="${year}"> ${year}</label>`
     ).join('')
   );
 
-  // TAG
+  // TAGS
   const agendaItems = getAllAgendaItems(meetings);
   const tags = new Set();
   agendaItems.forEach(item => {
@@ -149,104 +166,118 @@ function populateSidebarFilters(meetings) {
   });
   $('#tagFilterList').html(
     Array.from(tags).sort().map(tag =>
-      `<div><label><input type="radio" name="tagFilter" value="${tag}"> ${tag}</label></div>`
+      `<label><input type="checkbox" name="tagFilter" value="${tag}"> ${tag}</label>`
     ).join('')
   );
 
-  // CATEGORY
+  // CATEGORIES
   const cats = new Set();
   agendaItems.forEach(item => {
     if (item.category) cats.add(item.category.trim());
   });
   $('#categoryFilterList').html(
     Array.from(cats).sort().map(cat =>
-      `<div><label><input type="radio" name="categoryFilter" value="${cat}"> ${cat}</label></div>`
+      `<label><input type="checkbox" name="categoryFilter" value="${cat}"> ${cat}</label>`
     ).join('')
   );
 }
 
 function setupSidebarEvents(applyAllFilters) {
-  // Year radio
+  // Year
   $('#yearFilterList').on('change', 'input[name="yearFilter"]', function() {
-    filterState.year = this.checked ? this.value : null;
+    filterState.years = $('#yearFilterList input:checked').map(function(){return this.value;}).get();
     applyAllFilters();
   });
   $('#clearYear').on('click', function() {
-    filterState.year = null;
+    filterState.years = [];
     $('#yearFilterList input').prop('checked', false);
     applyAllFilters();
   });
 
-  // Tag radio
+  // Tag
   $('#tagFilterList').on('change', 'input[name="tagFilter"]', function() {
-    filterState.tag = this.checked ? this.value : null;
+    filterState.tags = $('#tagFilterList input:checked').map(function(){return this.value;}).get();
     applyAllFilters();
   });
   $('#clearTag').on('click', function() {
-    filterState.tag = null;
+    filterState.tags = [];
     $('#tagFilterList input').prop('checked', false);
     applyAllFilters();
   });
 
-  // Category radio
+  // Category
   $('#categoryFilterList').on('change', 'input[name="categoryFilter"]', function() {
-    filterState.category = this.checked ? this.value : null;
+    filterState.categories = $('#categoryFilterList input:checked').map(function(){return this.value;}).get();
     applyAllFilters();
   });
   $('#clearCategory').on('click', function() {
-    filterState.category = null;
+    filterState.categories = [];
     $('#categoryFilterList input').prop('checked', false);
     applyAllFilters();
   });
 
   // Clear all
   $('#clearAllFiltersBtn').on('click', function() {
-    filterState.year = null; filterState.tag = null; filterState.category = null;
+    filterState.years = [];
+    filterState.tags = [];
+    filterState.categories = [];
     $('#yearFilterList input, #tagFilterList input, #categoryFilterList input').prop('checked', false);
     applyAllFilters();
   });
 }
 
-// Filtering logic for agenda items
 function getFilteredItems(meetings) {
   let items = getAllAgendaItems(meetings);
 
-  if (filterState.year) {
-    items = items.filter(i => i.meeting_date && i.meeting_date.startsWith(filterState.year));
+  // Years (if any checked)
+  if (filterState.years.length) {
+    items = items.filter(i => i.meeting_date && filterState.years.some(y => i.meeting_date.startsWith(y)));
   }
-  if (filterState.tag) {
+  // Tags (must match at least one checked tag, or skip if none checked)
+  if (filterState.tags.length) {
     items = items.filter(i => {
       let theseTags = i.tags || [];
       if (typeof theseTags === "string") theseTags = theseTags.split(",").map(t=>t.trim());
-      return theseTags.includes(filterState.tag);
+      return theseTags.some(t => filterState.tags.includes(t));
     });
   }
-  if (filterState.category) {
-    items = items.filter(i => i.category && i.category.trim() === filterState.category);
+  // Categories (must match at least one checked cat, or skip if none checked)
+  if (filterState.categories.length) {
+    items = items.filter(i => i.category && filterState.categories.includes(i.category.trim()));
   }
   return items;
 }
 
 function renderCategoriesTable(meetings) {
   const filteredItems = getFilteredItems(meetings);
-  const itemsByCategory = {};
-  filteredItems.forEach(item => {
-    const cat = item.category ? item.category.trim() : "(Uncategorized)";
-    if (!itemsByCategory[cat]) itemsByCategory[cat] = [];
-    itemsByCategory[cat].push(item);
-  });
+  const tableData = filteredItems.map(item => [
+    item.meeting_date || "",
+    item.category || "",
+    item.title || "[Untitled]",
+    (typeof item.tags === "string" ? item.tags : (item.tags || []).join(", ")) || ""
+  ]);
 
-  let html = '';
-  Object.keys(itemsByCategory).sort().forEach(cat => {
-    html += `<div class="category-header">${cat}</div><div class="item-list">`;
-    itemsByCategory[cat].forEach(item => {
-      html += `<div class="item-row">${item.title || '[Untitled]'} <span style="color:#888;font-size:0.95em;">(${item.meeting_date || ''})</span></div>`;
+  // Destroy/recreate DataTable for instant filtering
+  if ($.fn.DataTable.isDataTable('#categoriesTable')) {
+    const dt = $('#categoriesTable').DataTable();
+    dt.clear().rows.add(tableData).draw();
+  } else {
+    $('#categoriesTable').DataTable({
+      data: tableData,
+      columns: [
+        { title: "Meeting Date" },
+        { title: "Category" },
+        { title: "Title" },
+        { title: "Tags" }
+      ],
+      paging: true,
+      pageLength: 25,
+      searching: false,
+      info: false,
+      order: [[0,"desc"]],
+      autoWidth: false
     });
-    html += `</div>`;
-  });
-
-  if (!html) html = '<div style="color:#b00;">No items match these filters.</div>';
-  $('#categoriesOutput').html(html);
+  }
 }
 
 // Load and initialize
