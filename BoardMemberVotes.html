@@ -8,12 +8,32 @@
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <style>
-    body { font-family: sans-serif; margin: 2rem; }
+    body { font-family: sans-serif; margin: 0; background: #fafbfc; }
+    #layout {
+      display: flex;
+      min-height: 100vh;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 0;
+    }
+    #sidebar {
+      flex: 0 0 250px;
+      background: #f5f7fa;
+      padding: 1.7rem 1.4rem 1.2rem 1.7rem;
+      border-radius: 1.2rem;
+      margin-right: 2.5rem;
+      box-shadow: 0 0 8px #e3e9ef;
+      min-width: 220px;
+      max-width: 320px;
+    }
+    #main {
+      flex: 1;
+      min-width: 0;
+    }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
     a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
-a.member-link:hover { color:#1976d2; }
-    #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
-    #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
+    a.member-link:hover { color:#1976d2; }
+    #memberFilter, #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
     #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
     .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
     .current-highlight { background: #e9faea !important; }
@@ -29,6 +49,33 @@ a.member-link:hover { color:#1976d2; }
       font-size: 0.95rem;
       margin-bottom: 0.6em;
     }
+    .filters-section {
+      margin-bottom: 1.1em;
+    }
+    .filter-group-title {
+      display: block;
+      font-size: 1.02em;
+      font-weight: 600;
+      margin-bottom: 0.3em;
+    }
+    .clear-link {
+      font-size: 0.93em;
+      font-weight: 400;
+      color: #1c59b4;
+      text-decoration: underline;
+      margin-left: 0.5em;
+      cursor: pointer;
+      opacity: 0.85;
+    }
+    .clear-link:hover { color: #1976d2; }
+    #clearAllFiltersBtn {
+      margin-top: 1.2em; width:90%;
+      background:#f8dada;
+      border:none; padding:0.6em;
+      border-radius:0.5em; font-size:1em;
+      cursor:pointer;
+    }
+    #clearAllFiltersBtn:hover { background: #ffeaea; }
   </style>
 </head>
 <body>
@@ -42,62 +89,82 @@ a.member-link:hover { color:#1976d2; }
       });
   </script>
 
-  <h1>Board Member Profile</h1>
-  <script>
-    document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
-  </script>
+  <div id="layout">
+    <div id="sidebar">
+      <h2 style="font-size:1.25em;margin:0 0 1em 0;">Filters</h2>
+      <div class="filters-section" id="yearFilterSection">
+        <span class="filter-group-title">Year <span class="clear-link" id="clearYear">Clear</span></span>
+        <div id="yearFilterList"></div>
+      </div>
+      <div class="filters-section" id="tagFilterSection">
+        <span class="filter-group-title">Tag <span class="clear-link" id="clearTag">Clear</span></span>
+        <div id="tagFilterList"></div>
+      </div>
+      <div class="filters-section" id="categoryFilterSection">
+        <span class="filter-group-title">Category <span class="clear-link" id="clearCategory">Clear</span></span>
+        <div id="categoryFilterList"></div>
+      </div>
+      <button id="clearAllFiltersBtn">Clear All Filters</button>
+    </div>
 
-  <p><b>Purpose:</b> View how each member votes over time</p>
-  <p><b>Actionable Uses:</b><br>
-    Strengthen public testimony with member-specific data<br>
-    Identify allies/opponents for advocacy efforts</p>
-   <p><b>Purpose:</b> Track how often controversial items are split votes vs unanimous</p>
-  <p><b>Actionable Uses:</b><br>
-  Identify "swing" board members<br>
-  Flag when patterns shift after elections</p>
+    <div id="main">
+      <h1>Board Member Profile</h1>
+      <script>
+        document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+      </script>
 
-  <div id="memberFilter">
-    <label>
-      <input type="checkbox" id="showCurrentOnly" />
-      Show only current board members
-      <span class="current-star" title="Current Member">★</span>
-    </label>
-  </div>
+      <p><b>Purpose:</b> View how each member votes over time</p>
+      <p><b>Actionable Uses:</b><br>
+        Strengthen public testimony with member-specific data<br>
+        Identify allies/opponents for advocacy efforts</p>
+      <p><b>Purpose:</b> Track how often controversial items are split votes vs unanimous</p>
+      <p><b>Actionable Uses:</b><br>
+        Identify "swing" board members<br>
+        Flag when patterns shift after elections</p>
 
-  <div id="additionalFilters">
-    <label>
-      <input type="checkbox" id="showPastYearOnly" />
-      Show only past year of votes
-    </label>
-    <label>
-      Types:
-      <select id="typeFilter" multiple>
-        <!-- Populated by JS with all unique types -->
-      </select>
-    </label>
-  </div>
+      <div id="memberFilter">
+        <label>
+          <input type="checkbox" id="showCurrentOnly" />
+          Show only current board members
+          <span class="current-star" title="Current Member">★</span>
+        </label>
+      </div>
 
-  <canvas id="voteBreakdownChart"></canvas>
+      <div id="additionalFilters">
+        <label>
+          <input type="checkbox" id="showPastYearOnly" />
+          Show only past year of votes
+        </label>
+        <label>
+          Types:
+          <select id="typeFilter" multiple>
+            <!-- Populated by JS with all unique types -->
+          </select>
+        </label>
+      </div>
 
-  <table id="voteTable">
-    <thead>
-      <tr>
-        <th>Board Member</th>
-        <th>Yes Votes</th>
-        <th>No Votes</th>
-        <th>Abstain Votes</th>
-        <th>Total Votes</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+      <canvas id="voteBreakdownChart"></canvas>
+
+      <table id="voteTable">
+        <thead>
+          <tr>
+            <th>Board Member</th>
+            <th>Yes Votes</th>
+            <th>No Votes</th>
+            <th>Abstain Votes</th>
+            <th>Total Votes</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div> <!-- /#main -->
+  </div> <!-- /#layout -->
 
 <script>
 const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
-
 
 // Add all historical and current members here (expand as needed)
 const BOARD_MEMBERS = [
@@ -133,6 +200,7 @@ function sortMembers(members) {
 let allMeetings = [];
 let allTypes = [];
 
+// LOAD meetings data
 async function loadAllMeetings(files) {
   const meetings = [];
   for (let file of files) {
@@ -147,7 +215,7 @@ async function loadAllMeetings(files) {
   return meetings;
 }
 
-// Get unique types from all loaded meetings
+// Unique types from all loaded meetings
 function getAllUniqueTypes(meetings) {
   const typeSet = new Set();
   meetings.forEach(meeting => {
@@ -211,6 +279,7 @@ function tallyVotesWithFilters(meetings, {pastYearOnly, typeSet}) {
 let voteTally = {};
 let sortedMembers = [];
 
+// Table & Chart render
 function renderTableAndChart(members) {
   // Build table data and row class for current members
   const tableData = members.map(member => {
@@ -219,14 +288,13 @@ function renderTableAndChart(members) {
     const abstain = voteTally[member.name]?.abstain || 0;
     const total = yes + no + abstain;
     const nameLink = `<a href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>`;
-const star = isCurrentMember(member)
-  ? '<span class="current-star" title="Current Board Member">★</span>'
-  : '';
-return [
-  `${nameLink} ${star}`,
-  yes, no, abstain, total
-];
-
+    const star = isCurrentMember(member)
+      ? '<span class="current-star" title="Current Board Member">★</span>'
+      : '';
+    return [
+      `${nameLink} ${star}`,
+      yes, no, abstain, total
+    ];
   });
 
   // DataTable with or without reset
@@ -344,6 +412,14 @@ return [
 
   // Listeners for all filters
   $('#showCurrentOnly, #showPastYearOnly, #typeFilter').on('change', applyAllFilters);
+
+  // --- Example: Wire up Clear/Sidebar filters if you implement them ---
+  $('#clearAllFiltersBtn').on('click', function() {
+    $('#showCurrentOnly, #showPastYearOnly').prop('checked', false);
+    $('#typeFilter').val([]);
+    // Add logic to clear sidebar filters (years, tags, categories) if you wire them up
+    applyAllFilters();
+  });
 })();
 </script>
 
