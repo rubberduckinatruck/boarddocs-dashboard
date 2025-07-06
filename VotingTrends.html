@@ -62,10 +62,10 @@
 
   <!-- Main layout: sidebar + main content -->
   <div id="layout">
-    <!-- Sidebar include -->
+    <!-- Sidebar include: now loading sidebar-voting.html -->
     <div id="sidebar-placeholder"></div>
     <script>
-      fetch("sidebar.html")
+      fetch("sidebar-voting.html")
         .then(res => res.text())
         .then(data => {
           document.getElementById("sidebar-placeholder").innerHTML = data;
