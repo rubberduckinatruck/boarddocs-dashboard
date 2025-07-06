@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AF BoardDocs Dash – Voting Trends</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #layout { display: flex; min-height: 100vh; }
+    #sidebar {
+      width: 240px;
+      background: #f8fafc;
+      border-right: 1px solid #eee;
+      padding: 2rem 1.5rem 2rem 1.5rem;
+      min-height: 100vh;
+      position: sticky; top: 0;
+      font-size: 1rem;
+    }
+    #main-content {
+      flex: 1; padding: 2rem;
+      background: #fff;
+      min-width: 0;
+    }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
+    a.member-link:hover { color:#1976d2; }
+    .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
+    .current-highlight { background: #e9faea !important; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
+    table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
+    th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
+    th { background-color: #f4f4f4; }
+    select[multiple] {
+      min-width: 130px;
+      min-height: 5.5em;
+      background: #fafcff;
+      border: 1px solid #ddd;
+      font-size: 0.95rem;
+      margin-bottom: 0.6em;
+    }
+    .filter-group-title {
+      font-weight: bold;
+      font-size: 1.02em;
+      margin: 1.2em 0 0.4em 0;
+      color: #444;
+    }
+    #yearFilterList label {
+      display: block;
+      margin-bottom: 0.18em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation include -->
+  <div id="nav-placeholder"></div>
+  <script>
+    fetch("nav.html")
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("nav-placeholder").innerHTML = data;
+      });
+  </script>
+
+  <div id="layout">
+    <div id="sidebar-placeholder"></div>
+    <div id="main-content">
+      <h1>Board Voting Trends</h1>
+      <script>
+        document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+      </script>
+      <p><b>Purpose:</b> View how each member votes over time</p>
+      <canvas id="voteBreakdownChart"></canvas>
+      <table id="voteTable">
+        <thead>
+          <tr>
+            <th>Board Member</th>
+            <th>Yes Votes</th>
+            <th>No Votes</th>
+            <th>Abstain Votes</th>
+            <th>Total Votes</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+  function normalizeType(type) {
+    if (!type) return "Other";
+    type = type.trim().toLowerCase();
+    if (type.match(/consent/)) return "Consent Agenda";
+    if (type.match(/personnel/)) return "Personnel";
+    if (type.match(/information/)) return "Information";
+    if (type.match(/policy/)) return "Policy";
+    if (type.match(/action/)) return "Action Item";
+    if (type.match(/minutes/)) return "Minutes";
+    if (type.match(/financial|finance/)) return "Finance";
+    return type.replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  const chunkedFiles = [
+    "data/master_2013to2024_cleaned.json",
+    "data/2025_cleaned.json"
+  ];
+
+  // Board member order is preserved for table/chart
+  const BOARD_MEMBERS = [
+    { name: "Sarah Silk",           term_start: 2025, term_end: 2028 },
+    { name: "Corby Naylor",         term_start: 2025, term_end: 2028 },
+    { name: "Eric Cultum",          term_start: 2023, term_end: 2026 },
+    { name: "Kristen Acton",        term_start: 2021, term_end: 2028 },
+    { name: "Vickie Landis",        term_start: 2015, term_end: 2026 },
+    { name: "Trey Terry",           term_start: 2021, term_end: 2024 },
+    { name: "Gina DeCoste",         term_start: 2015, term_end: 2024 },
+    { name: "Maxine Hill",          term_start: 2015, term_end: 2022 },
+    { name: "Mariana Sandoval",     term_start: 2017, term_end: 2020 },
+    { name: "Mary Kay Utecht",      term_start: 2017, term_end: 2020 },
+    { name: "Tom Rosztoczy",        term_start: 2011, term_end: 2016 },
+    { name: "Ron Whitney",          term_start: 2009, term_end: 2015 }
+  ];
+
+  function isCurrentMember(member) {
+    const currentYear = new Date().getFullYear();
+    return member.term_start <= currentYear && member.term_end >= currentYear;
+  }
+
+  function sortMembers(members) {
+    return members.slice();
+  }
+
+  let allMeetings = [];
+  let allTypes = [];
+  let voteTally = {};
+  let sortedMembers = [];
+
+  fetch("sidebar-voting.html")
+    .then(res => res.text())
+    .then(data => {
+      document.getElementById("sidebar-placeholder").innerHTML = data;
+      (async function() {
+        allMeetings = await loadAllMeetings(chunkedFiles);
+
+        // Exclude years with no individual voting data (2013–2018)
+        const excludedYears = ["2013", "2014", "2015", "2016", "2017", "2018"];
+        const allYears = Array.from(new Set(
+          allMeetings.map(m => String(m.meeting_date).slice(0, 4))
+        ))
+          .filter(year => Boolean(year) && !excludedYears.includes(year))
+          .sort((a, b) => b.localeCompare(a));
+
+        const $yearList = $('#yearFilterList');
+        $yearList.empty();
+        allYears.forEach(year => {
+          $yearList.append(`<label><input type="checkbox" class="year-filter" value="${year}" checked> ${year}</label>`);
+        });
+
+        allTypes = getAllUniqueTypes(allMeetings);
+        $('#typeFilter').empty();
+        allTypes.forEach(type => {
+          $('#typeFilter').append(`<option value="${type}">${type}</option>`);
+        });
+
+        sortedMembers = sortMembers(BOARD_MEMBERS);
+
+        function getSelectedYears() {
+          return $('.year-filter:checked').map(function() { return this.value; }).get();
+        }
+        function getSelectedTypes() {
+          return $('#typeFilter').val() || [];
+        }
+
+        function applyAllFilters() {
+          const selectedYears = getSelectedYears();
+          const selectedTypes = new Set(getSelectedTypes());
+          // Only include meetings for selected years
+          const filteredMeetings = allMeetings.filter(m =>
+            selectedYears.includes(String(m.meeting_date).slice(0, 4))
+          );
+          voteTally = tallyVotesWithFilters(filteredMeetings, { typeSet: selectedTypes });
+          renderBarChart(sortedMembers.filter(isCurrentMember));
+          renderTable(sortedMembers);
+        }
+
+        $('#yearFilterList').on('change', '.year-filter', applyAllFilters);
+        $('#typeFilter').on('change', applyAllFilters);
+        applyAllFilters();
+      })();
+    });
+
+  async function loadAllMeetings(files) {
+    const meetings = [];
+    for (let file of files) {
+      try {
+        const resp = await fetch(file);
+        const json = await resp.json();
+        meetings.push(...json);
+      } catch (e) {
+        console.error("Failed to load", file, e);
+      }
+    }
+    return meetings;
+  }
+
+  function getAllUniqueTypes(meetings) {
+    const typeSet = new Set();
+    meetings.forEach(meeting => {
+      (meeting.agenda_items || []).forEach(item => {
+        if (item.type && item.type.trim()) {
+          typeSet.add(normalizeType(item.type));
+        }
+      });
+    });
+    return Array.from(typeSet).sort();
+  }
+
+  // --- FIX: Count Consent Agenda top only ONCE per meeting ---
+  function tallyVotesWithFilters(meetings, { typeSet }) {
+    const voteTally = {};
+    meetings.forEach(meeting => {
+      let handledConsentTop = false;
+      (meeting.agenda_items || []).forEach(item => {
+        const cat = item.category ? item.category.toLowerCase() : "";
+        const title = item.title ? item.title.toLowerCase() : "";
+        const isConsentTop = cat.includes("consent agenda") && title.includes("consideration of approval");
+        const isConsentSub = cat.includes("consent agenda") && !title.includes("consideration of approval");
+        if (isConsentTop) {
+          if (handledConsentTop) return;
+          handledConsentTop = true;
+        } else if (isConsentSub) {
+          return; // skip sub-items
+        }
+
+        const itemType = normalizeType(item.type);
+        if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
+
+        const mv = item.motion_and_voting || {};
+        const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+        votesArr.forEach(v => {
+          if (!v || !v.name || !v.vote) return;
+          if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+          if (v.vote === "Yes") voteTally[v.name].yes++;
+          else if (v.vote === "No") voteTally[v.name].no++;
+          else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+        });
+      });
+    });
+    return voteTally;
+  }
+
+  function renderBarChart(currentMembers) {
+    const names = currentMembers.map(m => m.name + ' ★');
+    const yesCounts = currentMembers.map(m => voteTally[m.name]?.yes || 0);
+    const noCounts = currentMembers.map(m => voteTally[m.name]?.no || 0);
+    const abstainCounts = currentMembers.map(m => voteTally[m.name]?.abstain || 0);
+
+    if (window.voteProfileChart) window.voteProfileChart.destroy();
+    const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
+    window.voteProfileChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: names,
+        datasets: [
+          { label: "Yes Votes", data: yesCounts, backgroundColor: "#2ecc71" },
+          { label: "No Votes", data: noCounts, backgroundColor: "#e74c3c" },
+          { label: "Abstain Votes", data: abstainCounts, backgroundColor: "#f1c40f" }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: { display: true, text: "Board Member Voting Totals (Current Members Only)" },
+          legend: { position: "top" }
+        },
+        scales: { y: { beginAtZero: true, title: { display: true, text: "Vote Count" } } }
+      }
+    });
+  }
+
+  function renderTable(allMembers) {
+  // Get selected years as numbers:
+  const selectedYears = $('.year-filter:checked').map(function() { return parseInt(this.value); }).get();
+
+  const tableData = allMembers.map(member => {
+    // Did they serve any selected year?
+    const servedAnyYear = selectedYears.some(
+      y => y >= member.term_start && y <= member.term_end
+    );
+    let yes, no, abstain, total;
+    if (!servedAnyYear) {
+      yes = no = abstain = total = 'N/A';
+    } else {
+      yes = voteTally[member.name]?.yes || 0;
+      no = voteTally[member.name]?.no || 0;
+      abstain = voteTally[member.name]?.abstain || 0;
+      total = yes + no + abstain;
+    }
+    const nameLink = `<a class="member-link" href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>`;
+    const star = isCurrentMember(member) ? '<span class="current-star" title="Current Board Member">★</span>' : '';
+    return [nameLink + ' ' + star, yes, no, abstain, total];
+  });
+
+  if ($.fn.DataTable.isDataTable('#voteTable')) {
+    $('#voteTable').DataTable().destroy();
+    $('#voteTable tbody').empty();
+  }
+  $('#voteTable').DataTable({
+    data: tableData,
+    columns: [
+      { title: "Board Member" },
+      { title: "Yes Votes" },
+      { title: "No Votes" },
+      { title: "Abstain Votes" },
+      { title: "Total Votes" }
+    ],
+    paging: false,
+    searching: false,
+    info: false,
+    ordering: false,
+    createdRow: function(row, data, dataIndex) {
+      if (isCurrentMember(allMembers[dataIndex])) {
+        $(row).addClass('current-highlight');
+      }
+    }
+  });
+}
+
+  </script>
+</body>
+</html>

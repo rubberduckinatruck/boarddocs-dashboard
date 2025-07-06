@@ -1,48 +1,15 @@
-<!-- sidebar-voting.html -->
 <div id="sidebar">
   <h2 style="font-size:1.25em; margin:0 0 1em 0;">Voting Dashboard</h2>
-
-  <!-- Voting Filters (MUST match IDs used in JS) -->
-  <div id="memberFilter" style="margin-bottom:1.3em;">
-    <label>
-      <input type="checkbox" id="showCurrentOnly" />
-      Show only current board members
-      <span class="current-star" title="Current Member">★</span>
-    </label>
+  <div class="filters-section" id="yearFilterSection" style="margin-bottom:1.3em;">
+    <span class="filter-group-title">Years</span>
+    <div id="yearFilterList"></div>
   </div>
   <div id="additionalFilters" style="margin-bottom:1.8em;">
-    <label>
-      <input type="checkbox" id="showPastYearOnly" />
-      Show only past year of votes
-    </label>
-    <br>
     <label style="margin-top:0.8em;">
       Types:
       <select id="typeFilter" multiple style="margin-top:0.15em;">
-        <!-- Populated dynamically with cleaned type names -->
+        <!-- Populated dynamically -->
       </select>
     </label>
-  </div>
-
-  <div style="margin-bottom:2em;">
-    <div style="font-size:1.07em; margin-bottom:0.6em;"><b>Legend:</b></div>
-    <ul style="list-style:none; padding-left:0; margin:0;">
-      <li>
-        <span style="display:inline-block; width:1em; height:1em; background:#2ecc71; border-radius:2px; margin-right:0.5em; vertical-align:middle;"></span>
-        Yes Votes
-      </li>
-      <li>
-        <span style="display:inline-block; width:1em; height:1em; background:#e74c3c; border-radius:2px; margin-right:0.5em; vertical-align:middle;"></span>
-        No Votes
-      </li>
-      <li>
-        <span style="display:inline-block; width:1em; height:1em; background:#f1c40f; border-radius:2px; margin-right:0.5em; vertical-align:middle;"></span>
-        Abstain Votes
-      </li>
-    </ul>
-  </div>
-
-  <div style="font-size:0.99em; color:#666;">
-    <b>Tip:</b> Use filters to see voting patterns by member, type, or year.
   </div>
 </div>

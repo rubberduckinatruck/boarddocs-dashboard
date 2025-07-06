@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Agenda Item Detail – BoardDocs Dash</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin:2.2em 2.5em; background:#f8fafc; }
+    .detail-wrap { background:#fff; border:1px solid #ddd; border-radius:8px; padding:1.5em 2em 2em 2em; max-width:700px; margin:0 auto; }
+    .back-link { margin-bottom:1.2em; display:inline-block; }
+    .agenda-title { font-size:1.35em; font-weight:bold; margin-bottom:0.5em; color:#194f99;}
+    .agenda-info { font-size:1.06em; margin-bottom:1em; color:#3b3b3b;}
+    .item-section { margin-bottom:1.2em; }
+    .vote-table { border-collapse:collapse; width:100%; margin:0.7em 0 1.2em 0; }
+    .vote-table th, .vote-table td { border:1px solid #e2e2e2; padding:0.5em 0.9em; text-align:left;}
+    .vote-table th { background:#f6f8fb; }
+    .tag { display:inline-block; background:#e4effc; color:#1976d2; padding:1px 8px; border-radius:6px; font-size:0.98em; margin-left:0.4em;}
+    .motion-text { font-size:1.01em; background:#f7f8fd; border-radius:5px; padding:0.9em 1em; border:1px solid #eee; }
+    .notfound { color:#b31d1d; background:#fff2f2; border:1px solid #eedede; padding:1.1em; font-size:1.1em; border-radius:8px; }
+    .back-link a { color:#1976d2; }
+  </style>
+</head>
+<body>
+
+  <div class="back-link"><a href="javascript:history.back()">← Back</a></div>
+  <div class="detail-wrap" id="detailArea">
+    Loading agenda item...
+  </div>
+
+<script>
+const chunkedFiles = [
+  "data/master_2013to2024_cleaned.json",
+  "data/2025_cleaned.json"
+];
+
+function getParam(key) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(key);
+}
+const meeting_id = getParam('meeting_id');
+const item_number = getParam('item_number');
+
+(async function() {
+  const area = $("#detailArea");
+  if (!meeting_id || !item_number) {
+    area.html(`<div class="notfound">Agenda item not specified.<br>
+      <br>Please access this page via a link from a profile or the dashboard.</div>`);
+    return;
+  }
+
+  // Load meetings data
+  const meetings = [];
+  for (let file of chunkedFiles) {
+    try {
+      const resp = await fetch(file);
+      const json = await resp.json();
+      if (Array.isArray(json)) {
+        meetings.push(...json);
+      } else {
+        meetings.push(json);
+      }
+    } catch (e) {}
+  }
+
+  // --- Debug loaded meetings ---
+  console.log("Loaded meetings:", meetings.length, meetings.map(m => m.meeting_id));
+  console.log("Looking for meeting_id:", meeting_id);
+
+  // Find the meeting by meeting_id
+  let meeting = meetings.find(m => (m.meeting_id || m.meeting_date) == meeting_id);
+  if (!meeting && meeting_id) meeting = meetings.find(m => m.meeting_date == meeting_id);
+
+  if (!meeting) {
+    area.html(`<div class="notfound">Meeting not found for ID/date: <b>${meeting_id}</b></div>`);
+    return;
+  }
+
+  // --- Debug agenda item numbers available ---
+  console.log("Looking for item_number:", item_number);
+  (meeting.agenda_items||[]).forEach(i => {
+    console.log("Available item.number:", i.number, "Title:", i.title);
+  });
+
+  // Find the agenda item (match as string or number, flexibly)
+  let item = (meeting.agenda_items||[]).find(i =>
+    i.number && String(i.number).trim() == String(item_number).trim()
+  );
+
+  // Debug output if not found
+  if (!item) {
+    const allNumbers = (meeting.agenda_items||[]).map(i => i.number).join(", ");
+    area.html(`<div class="notfound">Agenda item not found for meeting <b>${meeting_id}</b> and item # <b>${item_number}</b>.<br>
+      <br>Available item numbers for this meeting: ${allNumbers}</div>`);
+    return;
+  }
+
+  // Render details
+  area.html(`
+    <div class="agenda-title">${item.title || "(No Title)"}</div>
+    <div class="agenda-info">
+      <b>Meeting Date:</b> ${meeting.meeting_date || meeting_id} <br>
+      <b>Agenda Item #:</b> ${item.number || item.id || "(n/a)"}
+      ${item.category ? `<br><b>Category:</b> ${item.category}` : ""}
+      ${item.type ? `<br><b>Type:</b> ${item.type}` : ""}
+      ${(item.tags && item.tags.length) ? `<br><b>Tags:</b> ${item.tags.map(t=>`<span class="tag">${t}</span>`).join(" ")}` : ""}
+    </div>
+    <div class="item-section">
+      <b>Description/Narrative:</b><br>
+      <div style="background:#f9fbfc; border-radius:5px; padding:0.8em 1em; margin:0.4em 0 1em 0; border:1px solid #f0f0f0; font-size:1.07em;">
+        ${item.narrative || "<span style='color:#aaa;'>No description available.</span>"}
+      </div>
+    </div>
+    ${item.motion_and_voting ? `
+      <div class="item-section">
+        <b>Motion:</b>
+        <div class="motion-text">${item.motion_and_voting.motion_text || "<span style='color:#aaa;'>N/A</span>"}</div>
+      </div>
+      <div class="item-section">
+        <b>Vote Breakdown:</b>
+        <table class="vote-table">
+          <thead>
+            <tr><th>Name</th><th>Vote</th></tr>
+          </thead>
+          <tbody>
+            ${Array.isArray(item.motion_and_voting.votes) && item.motion_and_voting.votes.length
+                ? item.motion_and_voting.votes.map(v =>
+                  `<tr>
+                    <td>${v.name || ""}</td>
+                    <td>${v.vote || ""}</td>
+                  </tr>`
+                ).join("")
+                : `<tr><td colspan="2" style="color:#aaa;">No vote record found</td></tr>`
+              }
+          </tbody>
+        </table>
+      </div>
+    ` : ""}
+    ${(item.attachments && item.attachments.length) ? `
+      <div class="item-section">
+        <b>Attachments:</b>
+        <ul style="margin-top:0.4em;">
+          ${item.attachments.map(a => 
+            `<li><a href="${a.url||'#'}" target="_blank">${a.name||a.url||"Attachment"}</a></li>`
+          ).join("")}
+        </ul>
+      </div>
+    ` : ""}
+  `);
+})();
+</script>
+
+</body>
+</html>

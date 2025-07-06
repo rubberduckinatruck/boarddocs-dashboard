@@ -3,108 +3,152 @@
 <head>
   <meta charset="UTF-8" />
   <title>AF BoardDocs Dash – Board Member Profile</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 2rem; }
-    .board-profile { border:1px solid #ddd; border-radius:8px; padding:1em; margin:1em 0 2em 0; background:#fafcff; max-width:560px; }
+    .board-profile { border:1px solid #ddd; border-radius:8px; padding:1em; margin:1em 0 2em 0; background:#fafcff; max-width:560px; position:relative; }
     .profile-header { display:flex; align-items:center; }
     .profile-photo { width:88px; height:88px; border-radius:50%; object-fit:cover; margin-right:1.5em; border:2px solid #e1e1e1; }
     .profile-info { font-size:1.13rem; }
     .current-star { color:green; font-size:1.4em; vertical-align:middle; margin-left:0.18em; }
-    .profile-bio { margin-top:0.6em; font-size:1rem; color:#333;}
     .profile-links { margin-top:0.8em; font-size:1rem;}
     .votesummary-table { border-collapse: collapse; margin:1em 0 1.5em 0;}
     .votesummary-table td, .votesummary-table th { border: 1px solid #ddd; padding: 0.45em 0.9em; }
     .votesummary-table th { background:#f6f6f6;}
-    .votesummary-table td.yes { color:#219d56; }
-    .votesummary-table td.no { color:#d3331c; }
-    .votesummary-table td.abstain { color:#bba307; }
-    .votesummary-table td.absent { color:#888; }
-    .recent-table { border-collapse:collapse; width:99%; margin:0.5em 0 1.2em 0;}
-    .recent-table td, .recent-table th { border:1px solid #eee; padding:0.42em 0.65em; }
-    .recent-table th { background:#f4f6fb; }
+    .votesummary-table td.yes { color:#219d56; cursor:pointer; text-decoration:underline; }
+    .votesummary-table td.no { color:#d3331c; cursor:pointer; text-decoration:underline; }
+    .votesummary-table td.abstain { color:#bba307; cursor:pointer; text-decoration:underline; }
+    .votesummary-table td.absent { color:#888; cursor:pointer; text-decoration:underline; }
     .tag { display:inline-block; background:#e4effc; color:#1976d2; padding:1px 8px; border-radius:6px; font-size:0.96em; margin-left:0.4em;}
     .notfound { color:#c33; background:#ffeaea; border:1px solid #eee; padding:1.5em; font-size:1.15em; border-radius:8px;}
     a { color:#1a4eaa; text-decoration:none; }
     a:hover { text-decoration:underline; }
+    #voteDetailsList { margin:1em 0 2em 0; }
+    .vote-detail-list { background: #fcfdff; border-radius:8px; border:1px solid #e1e6ee; margin-top:0.5em; padding:1em; }
+    .vote-detail-list h4 { margin:0 0 0.4em 0; font-size:1.07em; }
+    .vote-detail-list ul { margin:0 0 0 1.1em; padding:0; }
+    .vote-detail-list li { margin-bottom:0.32em; }
+    .absent-list-box {
+      position:absolute; right:1.2em; top:1.1em;
+      width:180px; min-height:90px; background:#fafdff;
+      border-left:1px solid #e1e1e1; padding:0.8em 0.6em 0.8em 1.1em;
+      color:#444; font-size:0.97em; text-align:left; border-radius:0 8px 8px 0;
+      box-shadow:0 1px 2px rgba(0,0,0,0.03);
+    }
+    .absent-list-box ul { margin:0.42em 0 0 1.1em; padding:0; font-size:0.97em;}
+    .absent-list-box li { margin-bottom:0.2em; }
+    @media (max-width: 700px) {
+      .absent-list-box { position:static; width:auto; border-left:none; border-top:1px solid #e1e1e1; border-radius:8px; margin-top:1em;}
+    }
   </style>
 </head>
 <body>
 
-  <div><a href="VotingTrends.html">← Back to Voting Trends</a></div>
+  <div><a href="BoardVotingTrends.html">← Back to Voting Trends</a></div>
 
   <div id="profileArea"></div>
+  <div id="voteDetailsList"></div>
 
 <script>
-// Board member master list (most recent at top)
 const BOARD_MEMBERS = [
-  { name: "Sarah Silk",       term_start: 2025, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
-  { name: "Corby Naylor",     term_start: 2025, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
-  { name: "Eric Cultum",      term_start: 2023, term_end: 2026, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
-  { name: "Kristen Acton",    term_start: 2021, term_end: 2028, photo: "", bio_url: "https://www.aguafria.org/Page/101" },
-  { name: "Vickie Landis",    term_start: 2015, term_end: 2026, photo: "", bio_url: "https://www.aguafria.org/Page/101" }
+  { name: "Sarah Silk",       term_start: 2025, term_end: 2028, photo: "GBpictures/SarahSilk.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Corby Naylor",     term_start: 2025, term_end: 2028, photo: "GBpictures/CorbyNaylor.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Eric Cultum",      term_start: 2023, term_end: 2026, photo: "GBpictures/EricCultum.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Kristen Acton",    term_start: 2021, term_end: 2028, photo: "GBpictures/KristenActon.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Vickie Landis",    term_start: 2015, term_end: 2026, photo: "GBpictures/VickieLandis.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Trey Terry",       term_start: 2021, term_end: 2024, photo: "GBpictures/TreyTerry.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Gina DeCoste",     term_start: 2015, term_end: 2024, photo: "GBpictures/GinaDeCoste.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Maxine Hill",      term_start: 2015, term_end: 2022, photo: "GBpictures/MaxineHill.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Mariana Sandoval", term_start: 2017, term_end: 2020, photo: "GBpictures/MarianaSandoval.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Mary Kay Utecht",  term_start: 2017, term_end: 2020, photo: "GBpictures/MaryKayUtecht.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Tom Rosztoczy",    term_start: 2011, term_end: 2016, photo: "GBpictures/TomRosztoczy.jpg", bio_url: "https://www.aguafria.org/Page/101" },
+  { name: "Ron Whitney",      term_start: 2009, term_end: 2015, photo: "GBpictures/RonWhitney.jpg", bio_url: "https://www.aguafria.org/Page/101" }
 ];
-
-// Load agenda/vote data
 const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
 
-
-// Utility for absent votes (if tracked)
-function computeAbsent(votesArr, memberName) {
-  if (!votesArr.length) return false;
-  return !votesArr.some(v => v && v.name === memberName);
-}
-
-// Only count consent block, not each sub-item
-function tallyVotesAndRecent(meetings, memberName) {
+// Only count consent block once per meeting!
+function tallyVotesAllTypes(meetings, memberName) {
   let yes=0, no=0, abstain=0, absent=0;
-  const recentNo = [], recentAbstain = [], recentAbsent = [];
-  // Descending by date for recents
-  const allVotes = [];
+  const details = {Yes: [], No: [], Abstain: [], Absent: []};
   meetings.forEach(meeting => {
+    let handledConsentTop = false;
     (meeting.agenda_items||[]).forEach(item => {
       const cat = item.category ? item.category.toLowerCase() : "";
       const title = item.title ? item.title.toLowerCase() : "";
-      const isConsentTop = (cat.includes("consent agenda") && title.includes("consideration of approval"));
-      const isConsentSub = (cat.includes("consent agenda") && !title.includes("consideration of approval"));
+      const isConsentTop = cat.includes("consent agenda") && title.includes("consideration of approval");
+      const isConsentSub = cat.includes("consent agenda") && !title.includes("consideration of approval");
+      if (isConsentTop) {
+        if (handledConsentTop) return;
+        handledConsentTop = true;
+      } else if (isConsentSub) {
+        return; // skip sub-items
+      }
       const mv = item.motion_and_voting || {};
       const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
       const voteObj = votesArr.find(v => v && v.name === memberName);
-      // Only count top consent block once
-      if (isConsentTop) {
-        if (voteObj) {
-          if (voteObj.vote === "Yes") yes++;
-          else if (voteObj.vote === "No") { no++; recentNo.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"No"});}
-          else if (voteObj.vote === "Abstain") { abstain++; recentAbstain.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Abstain"});}
-          allVotes.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:voteObj.vote});
-        } else if (votesArr.length) {
-          absent++; recentAbsent.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Absent"});
-        }
-      } else if (!isConsentSub) {
-        if (voteObj) {
-          if (voteObj.vote === "Yes") yes++;
-          else if (voteObj.vote === "No") { no++; recentNo.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"No"});}
-          else if (voteObj.vote === "Abstain") { abstain++; recentAbstain.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Abstain"});}
-          allVotes.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:voteObj.vote});
-        } else if (votesArr.length) {
-          absent++; recentAbsent.push({date:meeting.meeting_date, item:item.title, cat:item.category, result:"Absent"});
-        }
+
+      // -- Collect all necessary info for linking --
+      const item_number = item.number;
+      const meeting_id = meeting.meeting_id;
+
+      if (voteObj) {
+        if (voteObj.vote === "Yes") yes++;
+        else if (voteObj.vote === "No") { no++; }
+        else if (voteObj.vote === "Abstain") { abstain++; }
+        details[voteObj.vote]?.push({
+          date: meeting.meeting_date,
+          item: item.title,
+          cat: item.category,
+          result: voteObj.vote,
+          meeting_id,
+          item_number
+        });
+      } else if (votesArr.length) {
+        absent++;
+        details["Absent"].push({
+          date: meeting.meeting_date,
+          item: item.title,
+          cat: item.category,
+          result: "Absent",
+          meeting_id,
+          item_number
+        });
       }
     });
   });
-  // Sort by date descending for recent votes
-  recentNo.sort((a,b)=>b.date.localeCompare(a.date));
-  recentAbstain.sort((a,b)=>b.date.localeCompare(a.date));
-  recentAbsent.sort((a,b)=>b.date.localeCompare(a.date));
+  Object.keys(details).forEach(k => details[k].sort((a,b)=>b.date.localeCompare(a.date)));
   return {
     yes, no, abstain, absent,
-    recentNo: recentNo.slice(0,5), recentAbstain: recentAbstain.slice(0,5), recentAbsent: recentAbsent.slice(0,3),
-    allVotes
+    details
   };
+}
+
+function getUniqueAbsentDates(meetings, memberName) {
+  const absentDatesSet = new Set();
+  meetings.forEach(meeting => {
+    let handledConsentTop = false, wasAbsent = false;
+    (meeting.agenda_items||[]).forEach(item => {
+      const cat = item.category ? item.category.toLowerCase() : "";
+      const title = item.title ? item.title.toLowerCase() : "";
+      const isConsentTop = cat.includes("consent agenda") && title.includes("consideration of approval");
+      const isConsentSub = cat.includes("consent agenda") && !title.includes("consideration of approval");
+      if (isConsentTop) {
+        if (handledConsentTop) return;
+        handledConsentTop = true;
+      } else if (isConsentSub) {
+        return;
+      }
+      const mv = item.motion_and_voting || {};
+      const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+      const voteObj = votesArr.find(v => v && v.name === memberName);
+      if (!voteObj && votesArr.length) wasAbsent = true;
+    });
+    if (wasAbsent && meeting.meeting_date) absentDatesSet.add(meeting.meeting_date);
+  });
+  return Array.from(absentDatesSet).sort().reverse();
 }
 
 (async function() {
@@ -117,11 +161,32 @@ function tallyVotesAndRecent(meetings, memberName) {
   const profileDiv = document.getElementById("profileArea");
   if (!member) {
     profileDiv.innerHTML = `<div class="notfound">Board member not found.<br>
-    <br>Try clicking a name from the <a href="index.html">main dashboard</a>.</div>`;
+    <br>Try clicking a name from the <a href="BoardVotingTrends.html">voting trends dashboard</a>.</div>`;
     return;
   }
 
-  // Render initial profile (while votes load)
+  // Load and filter meetings
+  const meetings = [];
+  for (let file of chunkedFiles) {
+  try {
+    const resp = await fetch(file);
+    const json = await resp.json();
+    if (Array.isArray(json)) {
+      meetings.push(...json);
+    } else {
+      meetings.push(json);
+    }
+  } catch (e) {}
+}
+
+  const filteredMeetings = meetings.filter(m => {
+    const y = Number((m.meeting_date||"").slice(0,4));
+    return y >= member.term_start && y <= member.term_end;
+  });
+  const vt = tallyVotesAllTypes(filteredMeetings, member.name);
+  const absentDates = getUniqueAbsentDates(filteredMeetings, member.name);
+
+  // Render profile card with absent date box
   profileDiv.innerHTML = `
     <div class="board-profile">
       <div class="profile-header">
@@ -132,30 +197,22 @@ function tallyVotesAndRecent(meetings, memberName) {
           <div><b>Term:</b> ${member.term_start}–${member.term_end}</div>
           <div class="profile-links"><a href="${member.bio_url}" target="_blank">District Bio ↗</a></div>
         </div>
+        <div class="absent-list-box">
+          <b>Absent Dates:</b>
+          <ul>
+            ${
+              absentDates.length
+              ? absentDates.map(d => `<li>${d}</li>`).join("")
+              : "<li style='color:#aaa;'>No absences recorded</li>"
+            }
+          </ul>
+        </div>
       </div>
-      <div class="profile-bio"></div>
       <div id="votesummary"></div>
-      <div id="recentvotes"></div>
     </div>
   `;
 
-  // Load and tally votes
-  const meetings = [];
-  for (let file of chunkedFiles) {
-    try {
-      const resp = await fetch(file);
-      const json = await resp.json();
-      meetings.push(...json);
-    } catch (e) {}
-  }
-  // Restrict to meetings during member's service
-  const filteredMeetings = meetings.filter(m => {
-    const y = Number((m.meeting_date||"").slice(0,4));
-    return y >= member.term_start && y <= member.term_end;
-  });
-  const vt = tallyVotesAndRecent(filteredMeetings, member.name);
-
-  // Insert vote summary
+  // Insert vote summary (cells clickable)
   document.getElementById("votesummary").innerHTML = `
     <table class="votesummary-table">
       <tr>
@@ -166,42 +223,46 @@ function tallyVotesAndRecent(meetings, memberName) {
         <th>Total</th>
       </tr>
       <tr>
-        <td class="yes">${vt.yes}</td>
-        <td class="no">${vt.no}</td>
-        <td class="abstain">${vt.abstain}</td>
-        <td class="absent">${vt.absent}</td>
+        <td class="yes" id="yes-votes-cell" style="cursor:pointer;" title="Click to see all Yes votes">${vt.yes}</td>
+        <td class="no" id="no-votes-cell" style="cursor:pointer;" title="Click to see all No votes">${vt.no}</td>
+        <td class="abstain" id="abstain-votes-cell" style="cursor:pointer;" title="Click to see all Abstain votes">${vt.abstain}</td>
+        <td class="absent" id="absent-votes-cell" style="cursor:pointer;" title="Click to see all Absent votes">${vt.absent}</td>
         <td><b>${vt.yes + vt.no + vt.abstain + vt.absent}</b></td>
       </tr>
     </table>
   `;
 
-  // Insert recent No/Abstain/Absent breakdown
-  let recentHtml = "";
-  if (vt.recentNo.length || vt.recentAbstain.length || vt.recentAbsent.length) {
-    recentHtml += `<div style="margin-bottom:0.6em;"><b>Recent 'No', 'Abstain', or 'Absent' votes:</b></div>
-    <table class="recent-table">
-      <tr>
-        <th>Date</th><th>Agenda Item</th><th>Vote</th>
-      </tr>
-      ${[...vt.recentNo, ...vt.recentAbstain, ...vt.recentAbsent]
-        .sort((a,b)=>b.date.localeCompare(a.date))
-        .slice(0,8)
-        .map(v =>
-          `<tr>
-            <td>${v.date||""}</td>
-            <td>${v.item||""}${v.cat ? `<span class="tag">${v.cat}</span>` : ""}</td>
-            <td><b>${v.result}</b></td>
-          </tr>`
-        ).join("")}
-    </table>`;
-  } else {
-    recentHtml = `<div style="color:#888;">No recent 'No', 'Abstain', or 'Absent' votes found during this term.</div>`;
+  function showVoteDetails(type, votesArr) {
+    let html = `<div class="vote-detail-list"><h4>All ${type} Votes</h4>`;
+    if (votesArr.length === 0) {
+      html += `<div style="color:#888;">No ${type.toLowerCase()} votes found for this member during this term.</div>`;
+    } else {
+      html += '<ul>';
+      votesArr.forEach(v => {
+        // Build link using meeting_id and item_number, match as string
+        const agendaLink = (v.meeting_id && v.item_number)
+          ? `agenda_item.html?meeting_id=${encodeURIComponent(v.meeting_id)}&item_number=${encodeURIComponent(v.item_number)}`
+          : '#';
+        html += `<li>
+          <b>${v.date || ""}</b>:
+          <a href="${agendaLink}" target="_blank">${v.item || ""}</a>
+          ${v.cat ? `<span class="tag">${v.cat}</span>` : ""}
+        </li>`;
+      });
+      html += '</ul>';
+    }
+    html += '</div>';
+    document.getElementById("voteDetailsList").innerHTML = html;
+    window.scrollTo({ top: document.getElementById("voteDetailsList").offsetTop - 20, behavior: "smooth" });
   }
-  document.getElementById("recentvotes").innerHTML = recentHtml;
+
+  $('#yes-votes-cell').on('click', function() { showVoteDetails("Yes", vt.details.Yes); });
+  $('#no-votes-cell').on('click', function() { showVoteDetails("No", vt.details.No); });
+  $('#abstain-votes-cell').on('click', function() { showVoteDetails("Abstain", vt.details.Abstain); });
+  $('#absent-votes-cell').on('click', function() { showVoteDetails("Absent", vt.details.Absent); });
 
 })();
 </script>
 
 </body>
 </html>
-
