@@ -98,7 +98,6 @@
     </div>
   </div>
 
-  <!-- JS: Voting Trends logic (with normalizeCategories included) -->
   <script>
   // --- CATEGORY NORMALIZATION ---
   function normalizeCategories(cat) {
@@ -128,6 +127,20 @@
     }
     if (tags.length === 0) tags.push("Other");
     return [...new Set(tags)];
+  }
+
+  // --- TYPE NORMALIZATION ---
+  function normalizeType(type) {
+    if (!type) return "Other";
+    type = type.trim().toLowerCase();
+    if (type.match(/consent/)) return "Consent Agenda";
+    if (type.match(/personnel/)) return "Personnel";
+    if (type.match(/information/)) return "Information";
+    if (type.match(/policy/)) return "Policy";
+    if (type.match(/action/)) return "Action Item";
+    if (type.match(/minutes/)) return "Minutes";
+    if (type.match(/financial|finance/)) return "Finance";
+    return type.replace(/\b\w/g, l => l.toUpperCase()); // Fallback: Title Case
   }
 
   const chunkedFiles = [
@@ -183,12 +196,14 @@
     return meetings;
   }
 
-  // Get unique types from all loaded meetings
+  // Get unique, normalized types from all loaded meetings
   function getAllUniqueTypes(meetings) {
     const typeSet = new Set();
     meetings.forEach(meeting => {
       (meeting.agenda_items || []).forEach(item => {
-        if (item.type && item.type.trim()) typeSet.add(item.type.trim());
+        if (item.type && item.type.trim()) {
+          typeSet.add(normalizeType(item.type));
+        }
       });
     });
     return Array.from(typeSet).sort();
@@ -206,13 +221,12 @@
       if (pastYearOnly && meetingDate < oneYearAgo) return;
 
       (meeting.agenda_items || []).forEach(item => {
-        // Type filter
-        const itemType = (item.type || "").trim();
+        // --- Use normalized type for filtering ---
+        const itemType = normalizeType(item.type);
         if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
 
-        // Example of using normalized categories if needed:
+        // Example: Use normalized categories if needed
         // const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
-        // (You can now filter/tally by normalized category as needed!)
 
         const cat = item.category ? item.category.toLowerCase() : "";
         const title = item.title ? item.title.toLowerCase() : "";
@@ -358,7 +372,7 @@
     allMeetings = await loadAllMeetings(chunkedFiles);
     allTypes = getAllUniqueTypes(allMeetings);
 
-    // Populate type filter (in the sidebar)
+    // Populate type filter (in the sidebar) with cleaned types
     allTypes.forEach(type => {
       $('#typeFilter').append(`<option value="${type}">${type}</option>`);
     });
