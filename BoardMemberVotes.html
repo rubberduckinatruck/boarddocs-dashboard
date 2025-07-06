@@ -2,82 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AF BoardDocs Dash – Categories</title>
+  <title>AF BoardDocs Dash – Board Member Voting</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
   <style>
-    body { font-family: sans-serif; margin: 0; background: #fafbfc; }
-    #layout {
-      display: flex;
-      min-height: 100vh;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem 0;
-    }
-    #sidebar {
-      flex: 0 0 250px;
-      background: #f5f7fa;
-      padding: 1.7rem 1.4rem 1.2rem 1.7rem;
-      border-radius: 1.2rem;
-      margin-right: 2.5rem;
-      box-shadow: 0 0 8px #e3e9ef;
-      min-width: 220px;
-      max-width: 320px;
-    }
-    #main {
-      flex: 1;
-      min-width: 0;
-    }
+    body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
-    .filters-section {
-      margin-bottom: 1.1em;
-    }
-    .filter-group-title {
-      display: block;
-      font-size: 1.02em;
-      font-weight: 600;
-      margin-bottom: 0.3em;
-    }
-    .clear-link {
-      font-size: 0.93em;
-      font-weight: 400;
-      color: #1c59b4;
-      text-decoration: underline;
-      margin-left: 0.5em;
-      cursor: pointer;
-      opacity: 0.85;
-    }
-    .clear-link:hover { color: #1976d2; }
-    #clearAllFiltersBtn {
-      margin-top: 1.2em; width:90%;
-      background:#f8dada;
-      border:none; padding:0.6em;
-      border-radius:0.5em; font-size:1em;
-      cursor:pointer;
-    }
-    #clearAllFiltersBtn:hover { background: #ffeaea; }
+    a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
+a.member-link:hover { color:#1976d2; }
+    #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
+    #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
+    #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
+    .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
+    .current-highlight { background: #e9faea !important; }
+    canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
     table { width: 100%; margin-top: 2rem; border-collapse: collapse; font-size: 0.96rem; }
-    th, td { padding: 0.5rem; text-align: left; border: 1px solid #ddd; }
+    th, td { padding: 0.5rem; text-align: center; border: 1px solid #ddd; }
     th { background-color: #f4f4f4; }
-    .filter-list {
-      max-height: 140px;
-      overflow-y: auto;
-      background: #fff;
-      border-radius: 0.3em;
-      padding: 0.3em 0.3em 0.2em 0.6em;
-      border: 1px solid #e3e9ef;
-    }
-    .filter-list label {
-      display: block;
-      margin-bottom: 0.2em;
-      font-weight: normal;
-      font-size: 0.97em;
-      cursor: pointer;
+    select[multiple] {
+      min-width: 130px;
+      min-height: 5.5em;
+      background: #fafcff;
+      border: 1px solid #ddd;
+      font-size: 0.95rem;
+      margin-bottom: 0.6em;
     }
   </style>
 </head>
 <body>
+
   <div id="nav-placeholder"></div>
   <script>
     fetch("nav.html")
@@ -87,216 +42,310 @@
       });
   </script>
 
-  <div id="layout">
-    <div id="sidebar">
-      <h2 style="font-size:1.25em;margin:0 0 1em 0;">Filters</h2>
-      <div class="filters-section" id="yearFilterSection">
-        <span class="filter-group-title">Year <span class="clear-link" id="clearYear">Clear</span></span>
-        <div class="filter-list" id="yearFilterList"></div>
-      </div>
-      <div class="filters-section" id="tagFilterSection">
-        <span class="filter-group-title">Tag <span class="clear-link" id="clearTag">Clear</span></span>
-        <div class="filter-list" id="tagFilterList"></div>
-      </div>
-      <div class="filters-section" id="categoryFilterSection">
-        <span class="filter-group-title">Category <span class="clear-link" id="clearCategory">Clear</span></span>
-        <div class="filter-list" id="categoryFilterList"></div>
-      </div>
-      <button id="clearAllFiltersBtn">Clear All Filters</button>
-    </div>
+  <h1>Board Member Profile</h1>
+  <script>
+    document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
+  </script>
 
-    <div id="main">
-      <h1>Agenda Items</h1>
-      <table id="categoriesTable">
-        <thead>
-          <tr>
-            <th>Meeting Date</th>
-            <th>Category</th>
-            <th>Title</th>
-            <th>Tags</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+  <p><b>Purpose:</b> View how each member votes over time</p>
+  <p><b>Actionable Uses:</b><br>
+    Strengthen public testimony with member-specific data<br>
+    Identify allies/opponents for advocacy efforts</p>
+   <p><b>Purpose:</b> Track how often controversial items are split votes vs unanimous</p>
+  <p><b>Actionable Uses:</b><br>
+  Identify "swing" board members<br>
+  Flag when patterns shift after elections</p>
+
+  <div id="memberFilter">
+    <label>
+      <input type="checkbox" id="showCurrentOnly" />
+      Show only current board members
+      <span class="current-star" title="Current Member">★</span>
+    </label>
   </div>
+
+  <div id="additionalFilters">
+    <label>
+      <input type="checkbox" id="showPastYearOnly" />
+      Show only past year of votes
+    </label>
+    <label>
+      Types:
+      <select id="typeFilter" multiple>
+        <!-- Populated by JS with all unique types -->
+      </select>
+    </label>
+  </div>
+
+  <canvas id="voteBreakdownChart"></canvas>
+
+  <table id="voteTable">
+    <thead>
+      <tr>
+        <th>Board Member</th>
+        <th>Yes Votes</th>
+        <th>No Votes</th>
+        <th>Abstain Votes</th>
+        <th>Total Votes</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
 <script>
 const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
+
+
+// Add all historical and current members here (expand as needed)
+const BOARD_MEMBERS = [
+  { name: "Sarah Silk",           term_start: 2025, term_end: 2028 },
+  { name: "Corby Naylor",         term_start: 2025, term_end: 2028 },
+  { name: "Eric Cultum",          term_start: 2023, term_end: 2026 },
+  { name: "Kristen Acton",        term_start: 2021, term_end: 2028 },
+  { name: "Vickie Landis",        term_start: 2015, term_end: 2026 },
+  { name: "Trey Terry",           term_start: 2021, term_end: 2024 },
+  { name: "Gina DeCoste",         term_start: 2015, term_end: 2024 },
+  { name: "Maxine Hill",          term_start: 2015, term_end: 2022 },
+  { name: "Mariana Sandoval",     term_start: 2017, term_end: 2020 },
+  { name: "Mary Kay Utecht",      term_start: 2017, term_end: 2020 },
+  { name: "Tom Rosztoczy",        term_start: 2011, term_end: 2016 },
+  { name: "Ron Whitney",          term_start: 2009, term_end: 2015 }
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+function isCurrentMember(member) {
+  return member.term_start <= CURRENT_YEAR && member.term_end >= CURRENT_YEAR;
+}
+
+function sortMembers(members) {
+  return [...members].sort((a, b) => {
+    const aCurrent = isCurrentMember(a);
+    const bCurrent = isCurrentMember(b);
+    if (aCurrent !== bCurrent) return bCurrent - aCurrent; // true first
+    return a.name.localeCompare(b.name);
+  });
+}
+
 let allMeetings = [];
-const filterState = {
-  years: [],
-  tags: [],
-  categories: []
-};
+let allTypes = [];
 
-function getAllAgendaItems(meetings) {
-  // Flatten agenda items, each with parent meeting_date
-  return meetings.flatMap(m =>
-    (m.agenda_items || []).map(item => ({
-      ...item,
-      meeting_date: m.meeting_date
-    }))
-  );
-}
-
-function populateSidebarFilters(meetings) {
-  // YEARS
-  const years = new Set();
-  meetings.forEach(m => {
-    const y = (m.meeting_date || '').slice(0,4);
-    if (/^\d{4}$/.test(y)) years.add(y);
-  });
-  $('#yearFilterList').html(
-    Array.from(years).sort((a, b) => b - a).map(year =>
-      `<label><input type="checkbox" name="yearFilter" value="${year}"> ${year}</label>`
-    ).join('')
-  );
-
-  // TAGS
-  const agendaItems = getAllAgendaItems(meetings);
-  const tags = new Set();
-  agendaItems.forEach(item => {
-    let theseTags = item.tags || [];
-    if (typeof theseTags === "string") theseTags = theseTags.split(",").map(t=>t.trim());
-    theseTags.forEach(t => { if(t) tags.add(t); });
-  });
-  $('#tagFilterList').html(
-    Array.from(tags).sort().map(tag =>
-      `<label><input type="checkbox" name="tagFilter" value="${tag}"> ${tag}</label>`
-    ).join('')
-  );
-
-  // CATEGORIES
-  const cats = new Set();
-  agendaItems.forEach(item => {
-    if (item.category) cats.add(item.category.trim());
-  });
-  $('#categoryFilterList').html(
-    Array.from(cats).sort().map(cat =>
-      `<label><input type="checkbox" name="categoryFilter" value="${cat}"> ${cat}</label>`
-    ).join('')
-  );
-}
-
-function setupSidebarEvents(applyAllFilters) {
-  // Year
-  $('#yearFilterList').on('change', 'input[name="yearFilter"]', function() {
-    filterState.years = $('#yearFilterList input:checked').map(function(){return this.value;}).get();
-    applyAllFilters();
-  });
-  $('#clearYear').on('click', function() {
-    filterState.years = [];
-    $('#yearFilterList input').prop('checked', false);
-    applyAllFilters();
-  });
-
-  // Tag
-  $('#tagFilterList').on('change', 'input[name="tagFilter"]', function() {
-    filterState.tags = $('#tagFilterList input:checked').map(function(){return this.value;}).get();
-    applyAllFilters();
-  });
-  $('#clearTag').on('click', function() {
-    filterState.tags = [];
-    $('#tagFilterList input').prop('checked', false);
-    applyAllFilters();
-  });
-
-  // Category
-  $('#categoryFilterList').on('change', 'input[name="categoryFilter"]', function() {
-    filterState.categories = $('#categoryFilterList input:checked').map(function(){return this.value;}).get();
-    applyAllFilters();
-  });
-  $('#clearCategory').on('click', function() {
-    filterState.categories = [];
-    $('#categoryFilterList input').prop('checked', false);
-    applyAllFilters();
-  });
-
-  // Clear all
-  $('#clearAllFiltersBtn').on('click', function() {
-    filterState.years = [];
-    filterState.tags = [];
-    filterState.categories = [];
-    $('#yearFilterList input, #tagFilterList input, #categoryFilterList input').prop('checked', false);
-    applyAllFilters();
-  });
-}
-
-function getFilteredItems(meetings) {
-  let items = getAllAgendaItems(meetings);
-
-  // Years (if any checked)
-  if (filterState.years.length) {
-    items = items.filter(i => i.meeting_date && filterState.years.some(y => i.meeting_date.startsWith(y)));
-  }
-  // Tags (must match at least one checked tag, or skip if none checked)
-  if (filterState.tags.length) {
-    items = items.filter(i => {
-      let theseTags = i.tags || [];
-      if (typeof theseTags === "string") theseTags = theseTags.split(",").map(t=>t.trim());
-      return theseTags.some(t => filterState.tags.includes(t));
-    });
-  }
-  // Categories (must match at least one checked cat, or skip if none checked)
-  if (filterState.categories.length) {
-    items = items.filter(i => i.category && filterState.categories.includes(i.category.trim()));
-  }
-  return items;
-}
-
-function renderCategoriesTable(meetings) {
-  const filteredItems = getFilteredItems(meetings);
-  const tableData = filteredItems.map(item => [
-    item.meeting_date || "",
-    item.category || "",
-    item.title || "[Untitled]",
-    (typeof item.tags === "string" ? item.tags : (item.tags || []).join(", ")) || ""
-  ]);
-
-  // Destroy/recreate DataTable for instant filtering
-  if ($.fn.DataTable.isDataTable('#categoriesTable')) {
-    const dt = $('#categoriesTable').DataTable();
-    dt.clear().rows.add(tableData).draw();
-  } else {
-    $('#categoriesTable').DataTable({
-      data: tableData,
-      columns: [
-        { title: "Meeting Date" },
-        { title: "Category" },
-        { title: "Title" },
-        { title: "Tags" }
-      ],
-      paging: true,
-      pageLength: 25,
-      searching: false,
-      info: false,
-      order: [[0,"desc"]],
-      autoWidth: false
-    });
-  }
-}
-
-// Load and initialize
-(async function() {
-  allMeetings = [];
-  for (let file of chunkedFiles) {
+async function loadAllMeetings(files) {
+  const meetings = [];
+  for (let file of files) {
     try {
       const resp = await fetch(file);
       const json = await resp.json();
-      allMeetings.push(...json);
+      meetings.push(...json);
     } catch (e) {
       console.error("Failed to load", file, e);
     }
   }
+  return meetings;
+}
 
-  populateSidebarFilters(allMeetings);
-  setupSidebarEvents(() => renderCategoriesTable(allMeetings));
-  renderCategoriesTable(allMeetings);
+// Get unique types from all loaded meetings
+function getAllUniqueTypes(meetings) {
+  const typeSet = new Set();
+  meetings.forEach(meeting => {
+    (meeting.agenda_items || []).forEach(item => {
+      if (item.type && item.type.trim()) typeSet.add(item.type.trim());
+    });
+  });
+  return Array.from(typeSet).sort();
+}
+
+// Consent agenda fix: only count the "consideration of approval" item for consent, not sub-items
+function tallyVotesWithFilters(meetings, {pastYearOnly, typeSet}) {
+  const voteTally = {};
+  const now = new Date();
+  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+  meetings.forEach(meeting => {
+    // Date filter
+    const meetingDate = new Date(meeting.meeting_date);
+    if (pastYearOnly && meetingDate < oneYearAgo) return;
+
+    (meeting.agenda_items || []).forEach(item => {
+      // Type filter
+      const itemType = (item.type || "").trim();
+      if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
+
+      const cat = item.category ? item.category.toLowerCase() : "";
+      const title = item.title ? item.title.toLowerCase() : "";
+      const isConsentTop = (
+        cat.includes("consent agenda") &&
+        title.includes("consideration of approval")
+      );
+      const isConsentSub = (
+        cat.includes("consent agenda") &&
+        !title.includes("consideration of approval")
+      );
+      const mv = item.motion_and_voting || {};
+      const votesArr = Array.isArray(mv.votes) ? mv.votes : [];
+      if (isConsentTop) {
+        votesArr.forEach(v => {
+          if (!v || !v.name || !v.vote) return;
+          if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+          if (v.vote === "Yes") voteTally[v.name].yes++;
+          else if (v.vote === "No") voteTally[v.name].no++;
+          else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+        });
+      } else if (!isConsentSub) {
+        votesArr.forEach(v => {
+          if (!v || !v.name || !v.vote) return;
+          if (!voteTally[v.name]) voteTally[v.name] = { yes: 0, no: 0, abstain: 0 };
+          if (v.vote === "Yes") voteTally[v.name].yes++;
+          else if (v.vote === "No") voteTally[v.name].no++;
+          else if (v.vote === "Abstain") voteTally[v.name].abstain++;
+        });
+      }
+    });
+  });
+  return voteTally;
+}
+
+let voteTally = {};
+let sortedMembers = [];
+
+function renderTableAndChart(members) {
+  // Build table data and row class for current members
+  const tableData = members.map(member => {
+    const yes = voteTally[member.name]?.yes || 0;
+    const no = voteTally[member.name]?.no || 0;
+    const abstain = voteTally[member.name]?.abstain || 0;
+    const total = yes + no + abstain;
+    const nameLink = <a href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>;
+const star = isCurrentMember(member)
+  ? '<span class="current-star" title="Current Board Member">★</span>'
+  : '';
+return [
+  ${nameLink} ${star},
+  yes, no, abstain, total
+];
+
+  });
+
+  // DataTable with or without reset
+  if ($.fn.DataTable.isDataTable('#voteTable')) {
+    const dt = $('#voteTable').DataTable();
+    dt.clear().rows.add(tableData).draw();
+    // Highlight current members
+    $('#voteTable tbody tr').each(function(idx) {
+      if (isCurrentMember(members[idx])) $(this).addClass('current-highlight');
+      else $(this).removeClass('current-highlight');
+    });
+  } else {
+    $('#voteTable').DataTable({
+      data: tableData,
+      columns: [
+        { title: "Board Member" },
+        { title: "Yes Votes" },
+        { title: "No Votes" },
+        { title: "Abstain Votes" },
+        { title: "Total Votes" }
+      ],
+      paging: false,
+      searching: false,
+      info: false,
+      createdRow: function(row, data, dataIndex) {
+        if (isCurrentMember(members[dataIndex])) {
+          $(row).addClass('current-highlight');
+        }
+      }
+    });
+  }
+
+  // Chart
+  const names = members.map(m =>
+    isCurrentMember(m) ? ${m.name} ★ : m.name
+  );
+  const yesCounts = members.map(m => voteTally[m.name]?.yes || 0);
+  const noCounts = members.map(m => voteTally[m.name]?.no || 0);
+  const abstainCounts = members.map(m => voteTally[m.name]?.abstain || 0);
+
+  if (window.voteProfileChart) window.voteProfileChart.destroy();
+  const ctx = document.getElementById("voteBreakdownChart").getContext("2d");
+  window.voteProfileChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: names,
+      datasets: [
+        {
+          label: "Yes Votes",
+          data: yesCounts,
+          backgroundColor: "#2ecc71"
+        },
+        {
+          label: "No Votes",
+          data: noCounts,
+          backgroundColor: "#e74c3c"
+        },
+        {
+          label: "Abstain Votes",
+          data: abstainCounts,
+          backgroundColor: "#f1c40f"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: "Board Member Voting Totals"
+        },
+        legend: {
+          position: "top"
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Vote Count"
+          }
+        }
+      }
+    }
+  });
+}
+
+(async function() {
+  allMeetings = await loadAllMeetings(chunkedFiles);
+  allTypes = getAllUniqueTypes(allMeetings);
+
+  // Populate type filter
+  allTypes.forEach(type => {
+    $('#typeFilter').append(<option value="${type}">${type}</option>);
+  });
+
+  sortedMembers = sortMembers(BOARD_MEMBERS);
+
+  // Default: all votes/all types/all time
+  voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: false, typeSet: new Set()});
+  renderTableAndChart(sortedMembers);
+
+  // Filter logic
+  function applyAllFilters() {
+    const pastYear = $('#showPastYearOnly').is(':checked');
+    const typeSet = new Set($('#typeFilter').val() || []);
+    voteTally = tallyVotesWithFilters(allMeetings, {pastYearOnly: pastYear, typeSet});
+    // Apply member filter too
+    const filtered = $('#showCurrentOnly').is(':checked')
+      ? sortedMembers.filter(isCurrentMember)
+      : sortedMembers;
+    renderTableAndChart(filtered);
+  }
+
+  // Listeners for all filters
+  $('#showCurrentOnly, #showPastYearOnly, #typeFilter').on('change', applyAllFilters);
 })();
 </script>
+
 </body>
 </html>
