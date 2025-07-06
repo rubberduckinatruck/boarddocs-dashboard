@@ -30,9 +30,6 @@
     h1 { font-size: 2rem; margin-bottom: 1rem; }
     a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
     a.member-link:hover { color:#1976d2; }
-    #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
-    #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
-    #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
     .current-star { color: green; font-size: 1.3em; vertical-align: middle; margin-left: 0.18em;}
     .current-highlight { background: #e9faea !important; }
     canvas { max-width: 1000px; margin: 2rem auto; display: block; min-height: 320px !important; }
@@ -62,7 +59,7 @@
 
   <!-- Main layout: sidebar + main content -->
   <div id="layout">
-    <!-- Sidebar include: now loading sidebar-voting.html -->
+    <!-- Sidebar include: now loads sidebar-voting.html with filters -->
     <div id="sidebar-placeholder"></div>
     <script>
       fetch("sidebar-voting.html")
@@ -85,8 +82,6 @@
       <p><b>Actionable Uses:</b><br>
         Identify "swing" board members<br>
         Flag when patterns shift after elections</p>
-
-     
       <canvas id="voteBreakdownChart"></canvas>
       <table id="voteTable">
         <thead>
@@ -103,8 +98,38 @@
     </div>
   </div>
 
-  <!-- JS: Voting Trends logic (unchanged) -->
+  <!-- JS: Voting Trends logic (with normalizeCategories included) -->
   <script>
+  // --- CATEGORY NORMALIZATION ---
+  function normalizeCategories(cat) {
+    if (!cat) return ["Other"];
+    cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
+    const map = [
+      { tag: "Call to Order", regex: /call to order/ },
+      { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
+      { tag: "Information", regex: /information|discussion|presentation|informational/ },
+      { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
+      { tag: "Call to the Public", regex: /call to the public|public comments?/ },
+      { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
+      { tag: "Action Items", regex: /action items?/ },
+      { tag: "Consent Agenda Items", regex: /consent agenda/ },
+      { tag: "Future Agenda Items", regex: /future agenda/ },
+      { tag: "Return to Regular Session", regex: /return to regular session|reconvene|resturn to regular session|reconvene regular board meeting|reconvene meeting|reconvene the regular board meeting|reconvene to regular session/ },
+      { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
+      { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
+      { tag: "Public Hearing", regex: /public hearing/ },
+      { tag: "Recognitions", regex: /recognitions?/ },
+      { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
+      { tag: "Board Advisory Committee", regex: /advisory committee/ }
+    ];
+    const tags = [];
+    for (let m of map) {
+      if (cat.match(m.regex)) tags.push(m.tag);
+    }
+    if (tags.length === 0) tags.push("Other");
+    return [...new Set(tags)];
+  }
+
   const chunkedFiles = [
     "data/master_2013to2024_cleaned.json",
     "data/2025_cleaned.json"
@@ -184,6 +209,10 @@
         // Type filter
         const itemType = (item.type || "").trim();
         if (typeSet && typeSet.size > 0 && !typeSet.has(itemType)) return;
+
+        // Example of using normalized categories if needed:
+        // const cats = Array.isArray(item.category) ? item.category : normalizeCategories(item.category);
+        // (You can now filter/tally by normalized category as needed!)
 
         const cat = item.category ? item.category.toLowerCase() : "";
         const title = item.title ? item.title.toLowerCase() : "";
@@ -329,7 +358,7 @@
     allMeetings = await loadAllMeetings(chunkedFiles);
     allTypes = getAllUniqueTypes(allMeetings);
 
-    // Populate type filter
+    // Populate type filter (in the sidebar)
     allTypes.forEach(type => {
       $('#typeFilter').append(`<option value="${type}">${type}</option>`);
     });
@@ -352,7 +381,7 @@
       renderTableAndChart(filtered);
     }
 
-    // Listeners for all filters
+    // Listeners for all filters (now in the sidebar)
     $('#showCurrentOnly, #showPastYearOnly, #typeFilter').on('change', applyAllFilters);
   })();
   </script>
