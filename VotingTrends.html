@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AF BoardDocs Dash – Board Member Voting</title>
+  <title>AF BoardDocs Dash – Voting Trends</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -11,7 +11,7 @@
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 2rem; margin-bottom: 1rem; }
     a.member-link { color:#1c59b4; text-decoration:underline; font-weight:bold; }
-a.member-link:hover { color:#1976d2; }
+    a.member-link:hover { color:#1976d2; }
     #memberFilter { margin: 1.2em 0 0.8em 0; font-size: 1.05rem; }
     #additionalFilters { margin-bottom: 1.1em; font-size: 1.02rem; }
     #memberFilter label, #additionalFilters label { font-weight: bold; margin-right: 2em; }
@@ -97,7 +97,6 @@ const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
-
 
 // Add all historical and current members here (expand as needed)
 const BOARD_MEMBERS = [
@@ -218,15 +217,14 @@ function renderTableAndChart(members) {
     const no = voteTally[member.name]?.no || 0;
     const abstain = voteTally[member.name]?.abstain || 0;
     const total = yes + no + abstain;
-    const nameLink = <a href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>;
-const star = isCurrentMember(member)
-  ? '<span class="current-star" title="Current Board Member">★</span>'
-  : '';
-return [
-  ${nameLink} ${star},
-  yes, no, abstain, total
-];
-
+    const nameLink = `<a class="member-link" href="profile.html?member=${encodeURIComponent(member.name)}">${member.name}</a>`;
+    const star = isCurrentMember(member)
+      ? '<span class="current-star" title="Current Board Member">★</span>'
+      : '';
+    return [
+      nameLink + ' ' + star,
+      yes, no, abstain, total
+    ];
   });
 
   // DataTable with or without reset
@@ -261,7 +259,7 @@ return [
 
   // Chart
   const names = members.map(m =>
-    isCurrentMember(m) ? ${m.name} ★ : m.name
+    isCurrentMember(m) ? `${m.name} ★` : m.name
   );
   const yesCounts = members.map(m => voteTally[m.name]?.yes || 0);
   const noCounts = members.map(m => voteTally[m.name]?.no || 0);
@@ -321,7 +319,7 @@ return [
 
   // Populate type filter
   allTypes.forEach(type => {
-    $('#typeFilter').append(<option value="${type}">${type}</option>);
+    $('#typeFilter').append(`<option value="${type}">${type}</option>`);
   });
 
   sortedMembers = sortMembers(BOARD_MEMBERS);
