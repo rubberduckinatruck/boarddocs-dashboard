@@ -317,7 +317,7 @@ const chunkedFiles = [
   allAgendaItems = items;
 
   // --- 2. Build atomic filter lists (now truly atomic) ---
-  const allYears = [...new Set(allAgendaItems.map(i => i.year))]
+  const allYears = [...new Set(allagendaitems.flatmap(i => i.year))]
     .filter(Boolean)
     .sort((a, b) => b.localeCompare(a));
   const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => i.category));
