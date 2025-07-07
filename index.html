@@ -324,6 +324,7 @@ let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
   // --- 4. Build filter dropdowns on click, with current state ---
   $('#agendaTable thead').on('click', '.filter-btn', function(e) {
     e.stopPropagation();
+     e.preventDefault();
     const colIdx = $(this).data('col');
     const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
     $('.header-filter').not($filterDiv).hide(); // close others
