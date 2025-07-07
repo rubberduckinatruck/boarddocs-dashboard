@@ -67,6 +67,9 @@
       padding: 2px 8px;
       margin-bottom: 5px;
       cursor: pointer;
+      display: block;
+      width: 100%;
+      text-align: left;
     }
   </style>
 </head>
@@ -191,6 +194,9 @@ function updateChart(data) {
 let allAgendaItems = [];
 let table; // global for filters
 
+// --- Maintain selected filter values for each column ---
+let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
+
 (async function(){
   // --- 1. Load and flatten data ---
   const meetings = [];
@@ -296,62 +302,62 @@ let table; // global for filters
     ]
   });
 
-  // --- 3. Header Checkbox Filters ---
-  // Build and open filter on header button click
+  // --- 3. DataTables Column Filtering ---
+  // Register custom filter (once)
+  $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+    // Only filter if values are selected (null = show all)
+    for (let colIdx of [0,4]) {
+      const filterVals = activeFilterValues[colIdx];
+      if (Array.isArray(filterVals) && filterVals.length) {
+        // Get data value for that row
+        let rowVal = table.row(dataIndex).data();
+        if (!rowVal) return true;
+        let colVal = rowVal[colIdx === 0 ? 'year' : 'category'];
+        let valArr = Array.isArray(colVal) ? colVal : [colVal];
+        // Must match at least one checked value
+        if (!valArr.some(v => filterVals.includes(v))) return false;
+      }
+    }
+    return true;
+  });
+
+  // --- 4. Build filter dropdowns on click, with current state ---
   $('#agendaTable thead').on('click', '.filter-btn', function(e) {
     e.stopPropagation();
     const colIdx = $(this).data('col');
     const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
-    $('.header-filter').not($filterDiv).hide(); // close other filters
+    $('.header-filter').not($filterDiv).hide(); // close others
 
-    // Only build if empty or after table draw
-$('#agendaTable thead').on('click', '.filter-btn', function(e) {
-  e.stopPropagation();
-  const colIdx = $(this).data('col');
-  const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
-  $('.header-filter').not($filterDiv).hide(); // close other filters
+    const vals = getColumnUnique(table, colIdx);
 
-  const vals = getColumnUnique(table, colIdx);
+    // Use current activeFilterValues for checked/unchecked state
+    let checkedValues = Array.isArray(activeFilterValues[colIdx]) ? activeFilterValues[colIdx] : vals;
 
-  // Determine checked values from activeFilters
-  let checkedValues;
-  if (activeFilters[colIdx] && activeFilters[colIdx] !== '^$a') {
-    checkedValues = activeFilters[colIdx]
-      .replace(/^\^\((.*)\)\$$/, '$1')
-      .split('|')
-      .map(s => s.replace(/\\([|.^$?*+()[\]{}])/g, '$1')); // unescape regex
-  } else {
-    checkedValues = vals; // all checked
-  }
-
-  $filterDiv.empty();
-  $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
-  vals.forEach(v => {
-    const checked = checkedValues.includes(v) ? 'checked' : '';
-    $filterDiv.append(
-      `<label><input type="checkbox" value="${v}" ${checked}> ${v}</label>`
-    );
+    $filterDiv.empty();
+    $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
+    vals.forEach(v => {
+      const checked = checkedValues.includes(v) ? 'checked' : '';
+      $filterDiv.append(
+        `<label><input type="checkbox" value="${v}" ${checked}> ${v}</label>`
+      );
+    });
+    $filterDiv.toggle();
   });
-  $filterDiv.data('built', true);
-  $filterDiv.toggle();
-});
 
+  // --- 5. Only close filter if you click outside ---
+  $(document).on('mousedown', function(e) {
+    if (!$(e.target).closest('.header-filter, .filter-btn').length) {
+      $('.header-filter').hide();
+    }
+  });
 
- // Only hide if click is NOT inside a header-filter
-$(document).on('mousedown', function(e) {
-  if (!$(e.target).closest('.header-filter, .filter-btn').length) {
-    $('.header-filter').hide();
-  }
-});
-
-  // Select all button
+  // --- 6. "Select All" button logic ---
   $('#agendaTable thead').on('click', '.select-all-btn', function(e) {
     e.stopPropagation();
     $(this).parent().find('input[type=checkbox]').prop('checked', true).trigger('change');
   });
 
-  // Column filter logic
-  let activeFilters = { 0: null, 4: null }; // Year = 0, Category = 4
+  // --- 7. Handle checkbox changes and update DataTables filter ---
   $('#agendaTable thead').on('change', '.header-filter input[type=checkbox]', function(e) {
     e.stopPropagation();
     const $filterDiv = $(this).closest('.header-filter');
@@ -359,25 +365,14 @@ $(document).on('mousedown', function(e) {
     const checked = $filterDiv.find('input[type=checkbox]:checked').map(function() {
       return this.value;
     }).get();
-    if (checked.length === 0) {
-      // No values checked, match nothing
-      activeFilters[colIdx] = '^$a'; // regex that never matches
-    } else {
-      // Build regex string for DataTables filter
-      activeFilters[colIdx] = `^(${checked.map(x => $.fn.dataTable.util.escapeRegex(x)).join('|')})$`;
-    }
-    table.column(colIdx).search(activeFilters[colIdx] || '', true, false).draw();
+    activeFilterValues[colIdx] = checked.length === getColumnUnique(table, colIdx).length ? null : checked;
+    table.draw();
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // Reset filters on table draw (so that filter reflects current data)
+  // --- 8. On DataTables redraw, keep filter state and close dropdowns ---
   table.on('draw', function() {
-    [0, 4].forEach(colIdx => {
-      const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
-      $filterDiv.data('built', false);
-      // Optionally: auto-hide on draw
-      $filterDiv.hide();
-    });
+    $('.header-filter').hide();
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
     $('#agendaTable tbody tr').removeClass('expanded');
   });
