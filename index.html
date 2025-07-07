@@ -128,16 +128,19 @@
     <div class="filter-group" id="yearFilterGroup">
       <span class="filter-label">Year</span>
       <button type="button" class="select-all-btn" data-filter="year">Select All</button>
+      <button type="button" class="clear-all-btn" data-filter="year">Clear All</button>
       <span class="filter-checkbox-list" id="yearCheckboxList"></span>
     </div>
     <div class="filter-group" id="categoryFilterGroup">
       <span class="filter-label">Category</span>
       <button type="button" class="select-all-btn" data-filter="category">Select All</button>
+      <button type="button" class="clear-all-btn" data-filter="category">Clear All</button>
       <span class="filter-checkbox-list" id="categoryCheckboxList"></span>
     </div>
     <div class="filter-group" id="typeFilterGroup">
       <span class="filter-label">Type</span>
       <button type="button" class="select-all-btn" data-filter="type">Select All</button>
+      <button type="button" class="clear-all-btn" data-filter="type">Clear All</button>
       <span class="filter-checkbox-list" id="typeCheckboxList"></span>
     </div>
     <div class="filter-group" id="specialFilterGroup">
@@ -434,6 +437,23 @@ function updateChart(data) {
     updateTableFilter();
   });
 
+// Clear All for individual filter groups
+$(document).on('click', '.clear-all-btn', function() {
+  const type = $(this).data('filter');
+  if (type === "year") {
+    activeYearFilters = [];
+    renderFilterCheckboxes(allYears, "yearCheckboxList", activeYearFilters);
+  } else if (type === "category") {
+    activeCategoryFilters = [];
+    renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
+  } else if (type === "type") {
+    activeTypeFilters = [];
+    renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
+  }
+  updateTableFilter();
+});
+
+  
   // 7. Special filter checkboxes
   $('#excludeNoVote').on('change', function() {
     excludeNoVote = this.checked;
