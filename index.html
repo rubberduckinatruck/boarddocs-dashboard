@@ -10,6 +10,51 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2.5em;
+      background: #f8fafd;
+      border-radius: 10px;
+      border: 1px solid #e2e9f5;
+      padding: 1em 1.2em 0.7em 1.2em;
+      margin-bottom: 1.7em;
+      box-shadow: 0 2px 12px rgba(60,120,200,0.04);
+    }
+    .filter-group {
+      margin-bottom: 0.4em;
+    }
+    .filter-group label, .filter-group strong {
+      margin-right: 1.2em;
+      font-size: 0.98em;
+    }
+    .filter-checkbox-list {
+      display: inline-block;
+      margin-right: 1em;
+      min-width: 160px;
+      vertical-align: top;
+    }
+    .filter-checkbox-list label {
+      display: inline-block;
+      margin-right: 0.7em;
+      margin-bottom: 0.3em;
+      white-space: nowrap;
+    }
+    .select-all-btn {
+      margin-left: 0.5em;
+      font-size: 0.97em;
+      background: #eef5fb;
+      border: 1px solid #b5cde7;
+      color: #2576b6;
+      border-radius: 5px;
+      padding: 2px 9px;
+      cursor: pointer;
+      transition: background 0.15s, border 0.12s;
+    }
+    .select-all-btn:hover {
+      background: #d4eafd;
+    }
     table, #agendaTable { font-size: 0.95rem; }
     canvas {
       height: 100% !important;
@@ -40,63 +85,6 @@
     .attachments-cell { color: #0073b1; text-decoration: underline; }
     .attachments-list { display: none; margin: 0.4em 0 0 0; padding: 0; }
     tr.expanded .attachments-list { display: block; }
-
-    /* Header Filter Dropdowns */
-    th { position: relative; }
-    .filter-btn {
-      display: inline-block;
-      cursor: pointer;
-      font-size: 1.18em;
-      padding: 1px 7px 1px 7px;
-      border-radius: 5px;
-      background: #eef5fb;
-      border: 1px solid #b5cde7;
-      color: #2576b6;
-      box-shadow: 0 1px 3px rgba(80,120,200,0.06);
-      transition: background 0.15s, border 0.12s;
-      vertical-align: middle;
-      position: absolute;
-      right: 8px;
-      top: 3px;
-      z-index: 21;
-    }
-    .filter-btn:hover, .filter-btn:focus {
-      background: #d4eafd;
-      border: 1.5px solid #2587d2;
-      outline: none;
-    }
-    .filter-btn:active {
-      background: #b2d6f8;
-    }
-
-    .header-filter {
-      display: none;
-      position: absolute;
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 8px 12px;
-      z-index: 22;
-      max-height: 220px;
-      overflow-y: auto;
-      min-width: 140px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      left: auto;
-      right: 0;
-      top: 120%;
-    }
-    .header-filter label { display: block; margin: 0 0 2px 0; font-weight: normal; cursor: pointer; }
-    .header-filter input[type=checkbox] { margin-right: 4px; }
-    .header-filter button.select-all-btn {
-      background: #f5f5f5;
-      border: 1px solid #ccc;
-      font-size: 0.95em;
-      padding: 2px 8px;
-      margin-bottom: 5px;
-      cursor: pointer;
-      display: block;
-      width: 100%;
-      text-align: left;
-    }
   </style>
 </head>
 <body>
@@ -115,22 +103,28 @@
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
 
+  <!-- FILTER BAR -->
+  <div class="filter-bar" id="filterBar">
+    <div class="filter-group" id="yearFilterGroup">
+      <strong>Year:</strong>
+      <button type="button" class="select-all-btn" data-filter="year">Select All</button>
+      <span class="filter-checkbox-list" id="yearCheckboxList"></span>
+    </div>
+    <div class="filter-group" id="categoryFilterGroup">
+      <strong>Category:</strong>
+      <button type="button" class="select-all-btn" data-filter="category">Select All</button>
+      <span class="filter-checkbox-list" id="categoryCheckboxList"></span>
+    </div>
+  </div>
+
   <table id="agendaTable" class="display" width="100%">
     <thead>
       <tr>
-        <th style="position: relative;">
-          Year
-          <span class="filter-btn" data-col="0" title="Filter Year">🜜</span>
-          <div class="header-filter" data-col="0"></div>
-        </th>
+        <th>Year</th>
         <th>Date</th>
         <th>Agenda #</th>
         <th>Title</th>
-        <th style="position: relative;">
-          Category
-          <span class="filter-btn" data-col="4" title="Filter Category">🜜</span>
-          <div class="header-filter" data-col="4"></div>
-        </th>
+        <th>Category</th>
         <th>Type</th>
         <th>Recommended Action</th>
         <th>Moved By</th>
@@ -182,14 +176,33 @@ function normalizeCategories(cat) {
   return [...new Set(tags)];
 }
 
-// --- UTIL: Get Unique Values for a DataTable Column ---
-function getColumnUnique(table, colIdx) {
-  return [...new Set(table.column(colIdx).data().toArray().flatMap(x =>
-    Array.isArray(x) ? x : (x || '').toString().split(/,\s*/)
-  ))].filter(Boolean).sort();
+let allAgendaItems = [];
+let table; // global for filters
+
+let activeYearFilters = [];
+let activeCategoryFilters = [];
+
+function renderFilterCheckboxes(values, containerId, activeValues) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  values.forEach(val => {
+    const id = containerId + '_' + val.replace(/[^a-zA-Z0-9]/g, '');
+    container.innerHTML += `
+      <label><input type="checkbox" value="${val}" id="${id}" ${activeValues.includes(val) ? 'checked' : ''}>
+      ${val}</label>
+    `;
+  });
 }
 
-// --- CHART ---
+function getUniqueSorted(arr) {
+  return [...new Set(arr)].filter(Boolean).sort();
+}
+
+function updateTableFilter() {
+  table.draw();
+  updateChart(table.rows({ filter: 'applied' }).data().toArray());
+}
+
 function updateChart(data) {
   const result = { Yes: 0, No: 0, Abstain: 0 };
   data.forEach(row => {
@@ -219,14 +232,8 @@ function updateChart(data) {
   });
 }
 
-let allAgendaItems = [];
-let table; // global for filters
-
-// --- Maintain selected filter values for each column ---
-let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
-
 (async function(){
-  // --- 1. Load and flatten data ---
+  // 1. Load and flatten data
   const meetings = [];
   for (let file of chunkedFiles) {
     try {
@@ -284,18 +291,25 @@ let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
   });
   allAgendaItems = items;
 
-  // --- 2. DataTables Setup ---
+  // 2. Build filter lists
+  const allYears = getUniqueSorted(allAgendaItems.map(i => i.year));
+  const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => Array.isArray(i.category) ? i.category : [i.category]));
+  activeYearFilters = [...allYears];
+  activeCategoryFilters = [...allCategories];
+  renderFilterCheckboxes(allYears, "yearCheckboxList", activeYearFilters);
+  renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
+
+  // 3. DataTable setup (all columns sortable)
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
     order: [[0, 'desc']],
     columns: [
-      { data: "year", orderable: false }, // disable sorting for year
+      { data: "year" },
       { data: "meeting_date" },
       { data: "agenda_number" },
       { data: "title" },
       {
         data: "category",
-        orderable: false, // disable sorting for category
         render: cats => Array.isArray(cats) ? cats.join(", ") : cats
       },
       { data: "type" },
@@ -331,91 +345,53 @@ let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
     ]
   });
 
-  // --- 3. DataTables Column Filtering ---
-  // Register custom filter (once)
+  // 4. DataTables filter hook
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-    // Only filter if values are selected (null = show all)
-    for (let colIdx of [0,4]) {
-      const filterVals = activeFilterValues[colIdx];
-      if (Array.isArray(filterVals) && filterVals.length) {
-        // Get data value for that row
-        let rowVal = table.row(dataIndex).data();
-        if (!rowVal) return true;
-        let colVal = rowVal[colIdx === 0 ? 'year' : 'category'];
-        let valArr = Array.isArray(colVal) ? colVal : [colVal];
-        // Must match at least one checked value
-        if (!valArr.some(v => filterVals.includes(v))) return false;
-      }
-    }
+    const row = table.row(dataIndex).data();
+    if (!row) return true;
+    // Year filter
+    if (activeYearFilters.length && !activeYearFilters.includes(row.year)) return false;
+    // Category filter
+    const rowCats = Array.isArray(row.category) ? row.category : [row.category];
+    if (activeCategoryFilters.length && !rowCats.some(cat => activeCategoryFilters.includes(cat))) return false;
     return true;
   });
 
-  // --- 4. Build filter dropdowns on click, with current state ---
-  $('#agendaTable thead').on('click', '.filter-btn', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const colIdx = $(this).data('col');
-    const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
-    $('.header-filter').not($filterDiv).hide(); // close others
-
-    const vals = getColumnUnique(table, colIdx);
-
-    // Use current activeFilterValues for checked/unchecked state
-    let checkedValues = Array.isArray(activeFilterValues[colIdx]) ? activeFilterValues[colIdx] : vals;
-
-    $filterDiv.empty();
-    $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
-    vals.forEach(v => {
-      const checked = checkedValues.includes(v) ? 'checked' : '';
-      $filterDiv.append(
-        `<label><input type="checkbox" value="${v}" ${checked}> ${v}</label>`
-      );
-    });
-    $filterDiv.toggle();
+  // 5. Listen for year/category filter changes
+  $(document).on('change', '#yearCheckboxList input[type=checkbox]', function() {
+    activeYearFilters = $('#yearCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
+    updateTableFilter();
+  });
+  $(document).on('change', '#categoryCheckboxList input[type=checkbox]', function() {
+    activeCategoryFilters = $('#categoryCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
+    updateTableFilter();
   });
 
-  // --- 5. Only close filter if you click outside ---
-  $(document).on('mousedown', function(e) {
-    if (!$(e.target).closest('.header-filter, .filter-btn').length) {
-      $('.header-filter').hide();
+  // 6. "Select All" buttons
+  $(document).on('click', '.select-all-btn', function() {
+    const type = $(this).data('filter');
+    if (type === "year") {
+      activeYearFilters = [...allYears];
+      renderFilterCheckboxes(allYears, "yearCheckboxList", activeYearFilters);
+    } else if (type === "category") {
+      activeCategoryFilters = [...allCategories];
+      renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
     }
+    updateTableFilter();
   });
 
-  // --- 6. "Select All" button logic ---
-  $('#agendaTable thead').on('click', '.select-all-btn', function(e) {
-    e.stopPropagation();
-    $(this).parent().find('input[type=checkbox]').prop('checked', true).trigger('change');
-  });
-
-  // --- 7. Handle checkbox changes and update DataTables filter ---
-  $('#agendaTable thead').on('change', '.header-filter input[type=checkbox]', function(e) {
-    e.stopPropagation();
-    const $filterDiv = $(this).closest('.header-filter');
-    const colIdx = parseInt($filterDiv.data('col'));
-    const checked = $filterDiv.find('input[type=checkbox]:checked').map(function() {
-      return this.value;
-    }).get();
-    activeFilterValues[colIdx] = checked.length === getColumnUnique(table, colIdx).length ? null : checked;
-    table.draw();
-    updateChart(table.rows({ filter: 'applied' }).data().toArray());
-  });
-
-  // --- 8. On DataTables redraw, keep filter state and close dropdowns ---
-  table.on('draw', function() {
-    $('.header-filter').hide();
-    updateChart(table.rows({ filter: 'applied' }).data().toArray());
-    $('#agendaTable tbody tr').removeClass('expanded');
-  });
-
-  // --- Expand/collapse logic ---
+  // Row expand/collapse logic
   $('#agendaTable tbody').on('click', 'td', function () {
     var $tr = $(this).closest('tr');
     $tr.toggleClass('expanded');
   });
 
-  // --- Initial chart ---
+  // Initial chart
   updateChart(table.rows({ filter: 'applied' }).data().toArray());
-
+  table.on('draw', function() {
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
+    $('#agendaTable tbody tr').removeClass('expanded');
+  });
 })();
 </script>
 
