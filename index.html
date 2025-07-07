@@ -329,7 +329,10 @@ function updateChart(data) {
   allAgendaItems = items;
 
   // 2. Build filter lists
-  const allYears = getUniqueSorted(allAgendaItems.map(i => i.year));
+ const allYears = [...new Set(allAgendaItems.map(i => i.year))]
+  .filter(Boolean)
+  .sort((a, b) => b.localeCompare(a));  // Descending string order (works for years)
+
   const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => Array.isArray(i.category) ? i.category : [i.category]));
   const allTypes = getUniqueSorted(allAgendaItems.map(i => i.type));
   activeYearFilters = [...allYears];
