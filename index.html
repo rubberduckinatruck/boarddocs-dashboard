@@ -12,37 +12,46 @@
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
     .filter-bar {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 2.5em;
+      flex-direction: row;
+      gap: 2em;
+      align-items: flex-start;
       background: #f8fafd;
       border-radius: 10px;
       border: 1px solid #e2e9f5;
-      padding: 1em 1.2em 0.7em 1.2em;
+      padding: 1em 1.2em 0.8em 1.2em;
       margin-bottom: 1.7em;
       box-shadow: 0 2px 12px rgba(60,120,200,0.04);
     }
     .filter-group {
-      margin-bottom: 0.4em;
+      display: flex;
+      flex-direction: column;
+      min-width: 160px;
+      max-height: 250px;
+      margin-right: 0.5em;
     }
-    .filter-group label, .filter-group strong {
-      margin-right: 1.2em;
-      font-size: 0.98em;
+    .filter-label {
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      font-size: 1.03em;
     }
     .filter-checkbox-list {
-      display: inline-block;
-      margin-right: 1em;
-      min-width: 160px;
-      vertical-align: top;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15em;
+      max-height: 170px;
+      overflow-y: auto;
+      margin-bottom: 0.5em;
     }
     .filter-checkbox-list label {
-      display: inline-block;
-      margin-right: 0.7em;
-      margin-bottom: 0.3em;
+      font-size: 0.98em;
       white-space: nowrap;
+      margin-bottom: 0.1em;
+      display: flex;
+      align-items: center;
+      gap: 0.25em;
     }
     .select-all-btn {
-      margin-left: 0.5em;
+      margin-bottom: 0.3em;
       font-size: 0.97em;
       background: #eef5fb;
       border: 1px solid #b5cde7;
@@ -51,9 +60,20 @@
       padding: 2px 9px;
       cursor: pointer;
       transition: background 0.15s, border 0.12s;
+      width: fit-content;
+      align-self: flex-start;
     }
     .select-all-btn:hover {
       background: #d4eafd;
+    }
+    .special-checkbox-list label {
+      font-size: 0.98em;
+      margin-bottom: 0.3em;
+      display: flex;
+      align-items: center;
+      gap: 0.25em;
+      font-weight: normal;
+      white-space: nowrap;
     }
     table, #agendaTable { font-size: 0.95rem; }
     canvas {
@@ -106,14 +126,26 @@
   <!-- FILTER BAR -->
   <div class="filter-bar" id="filterBar">
     <div class="filter-group" id="yearFilterGroup">
-      <strong>Year:</strong>
+      <span class="filter-label">Year</span>
       <button type="button" class="select-all-btn" data-filter="year">Select All</button>
       <span class="filter-checkbox-list" id="yearCheckboxList"></span>
     </div>
     <div class="filter-group" id="categoryFilterGroup">
-      <strong>Category:</strong>
+      <span class="filter-label">Category</span>
       <button type="button" class="select-all-btn" data-filter="category">Select All</button>
       <span class="filter-checkbox-list" id="categoryCheckboxList"></span>
+    </div>
+    <div class="filter-group" id="typeFilterGroup">
+      <span class="filter-label">Type</span>
+      <button type="button" class="select-all-btn" data-filter="type">Select All</button>
+      <span class="filter-checkbox-list" id="typeCheckboxList"></span>
+    </div>
+    <div class="filter-group" id="specialFilterGroup">
+      <span class="filter-label">Special</span>
+      <div class="special-checkbox-list">
+        <label><input type="checkbox" id="excludeNoVote"> Exclude items without a vote</label>
+        <label><input type="checkbox" id="onlyNonUnanimous"> Only show non-unanimous votes</label>
+      </div>
     </div>
   </div>
 
@@ -146,7 +178,6 @@ const chunkedFiles = [
   "data/2025_cleaned.json"
 ];
 
-// --- CATEGORY NORMALIZATION ---
 function normalizeCategories(cat) {
   if (!cat) return ["Other"];
   cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
@@ -181,6 +212,9 @@ let table; // global for filters
 
 let activeYearFilters = [];
 let activeCategoryFilters = [];
+let activeTypeFilters = [];
+let excludeNoVote = false;
+let onlyNonUnanimous = false;
 
 function renderFilterCheckboxes(values, containerId, activeValues) {
   const container = document.getElementById(containerId);
@@ -294,10 +328,13 @@ function updateChart(data) {
   // 2. Build filter lists
   const allYears = getUniqueSorted(allAgendaItems.map(i => i.year));
   const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => Array.isArray(i.category) ? i.category : [i.category]));
+  const allTypes = getUniqueSorted(allAgendaItems.map(i => i.type));
   activeYearFilters = [...allYears];
   activeCategoryFilters = [...allCategories];
+  activeTypeFilters = [...allTypes];
   renderFilterCheckboxes(allYears, "yearCheckboxList", activeYearFilters);
   renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
+  renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
 
   // 3. DataTable setup (all columns sortable)
   table = $('#agendaTable').DataTable({
@@ -354,16 +391,29 @@ function updateChart(data) {
     // Category filter
     const rowCats = Array.isArray(row.category) ? row.category : [row.category];
     if (activeCategoryFilters.length && !rowCats.some(cat => activeCategoryFilters.includes(cat))) return false;
+    // Type filter
+    if (activeTypeFilters.length && !activeTypeFilters.includes(row.type)) return false;
+    // Exclude items without a vote
+    if (excludeNoVote && !row.vote_result) return false;
+    // Only show non-unanimous
+    if (onlyNonUnanimous) {
+      const yes = Number(row.yes_votes) || 0, no = Number(row.no_votes) || 0, abstain = Number(row.abstain_votes) || 0;
+      if (yes && (no === 0 && abstain === 0)) return false;
+    }
     return true;
   });
 
-  // 5. Listen for year/category filter changes
+  // 5. Listen for year/category/type filter changes
   $(document).on('change', '#yearCheckboxList input[type=checkbox]', function() {
     activeYearFilters = $('#yearCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
     updateTableFilter();
   });
   $(document).on('change', '#categoryCheckboxList input[type=checkbox]', function() {
     activeCategoryFilters = $('#categoryCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
+    updateTableFilter();
+  });
+  $(document).on('change', '#typeCheckboxList input[type=checkbox]', function() {
+    activeTypeFilters = $('#typeCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
     updateTableFilter();
   });
 
@@ -376,7 +426,20 @@ function updateChart(data) {
     } else if (type === "category") {
       activeCategoryFilters = [...allCategories];
       renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
+    } else if (type === "type") {
+      activeTypeFilters = [...allTypes];
+      renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
     }
+    updateTableFilter();
+  });
+
+  // 7. Special filter checkboxes
+  $('#excludeNoVote').on('change', function() {
+    excludeNoVote = this.checked;
+    updateTableFilter();
+  });
+  $('#onlyNonUnanimous').on('change', function() {
+    onlyNonUnanimous = this.checked;
     updateTableFilter();
   });
 
