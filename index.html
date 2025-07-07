@@ -319,10 +319,12 @@ let table; // global for filters
     $filterDiv.toggle();
   });
 
-  // Hide filters on outside click
-  $(document).on('click', function() {
+ // Only hide if click is NOT inside a header-filter
+$(document).on('mousedown', function(e) {
+  if (!$(e.target).closest('.header-filter, .filter-btn').length) {
     $('.header-filter').hide();
-  });
+  }
+});
 
   // Select all button
   $('#agendaTable thead').on('click', '.select-all-btn', function(e) {
