@@ -139,6 +139,24 @@ function anyTagMatch(arr, filters) {
   return arr.some(tag => filters.includes(tag));
 }
 
+/**
+ * Utility: Deduplicate an array of objects by given keys.
+ * @param {Array<Object>} arr - Array of objects to deduplicate.
+ * @param {Array<string>} keys - Keys to use for uniqueness (e.g., ['name', 'vote']).
+ * @returns {Array<Object>} Deduplicated array.
+ */
+function dedupeByKeys(arr, keys) {
+  const seen = new Set();
+  return arr.filter(item => {
+    const key = keys.map(k => item[k]).join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+
+
 // Add more utilities as your project grows!
 
 // ---- End of boarddocs_common.js ----
