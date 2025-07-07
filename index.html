@@ -10,111 +10,21 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
-    .filter-bar {
-      display: flex;
-      flex-direction: row;
-      gap: 2em;
-      align-items: flex-start;
-      background: #f8fafd;
-      border-radius: 10px;
-      border: 1px solid #e2e9f5;
-      padding: 1em 1.2em 0.8em 1.2em;
-      margin-bottom: 1.7em;
-      box-shadow: 0 2px 12px rgba(60,120,200,0.04);
-    }
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      min-width: 160px;
-      max-height: 250px;
-      margin-right: 0.5em;
-    }
-    .filter-label {
-      font-weight: bold;
-      margin-bottom: 0.5em;
-      font-size: 1.03em;
-    }
-    .filter-btn-row {
-      display: flex;
-      gap: 0.7em;
-      margin-bottom: 0.3em;
-    }
-    .select-all-btn, .clear-all-btn {
-      font-size: 0.97em;
-      border-radius: 5px;
-      padding: 2px 10px;
-      cursor: pointer;
-      width: fit-content;
-      align-self: flex-start;
-      border: 1px solid #b5cde7;
-      background: #eef5fb;
-      color: #2576b6;
-      transition: background 0.15s, border 0.12s;
-    }
-    .select-all-btn:hover, .clear-all-btn:hover {
-      background: #d4eafd;
-    }
-    .clear-all-btn {
-      background: #ffeaea;
-      border: 1px solid #f3cccc;
-      color: #c63d3d;
-      transition: background 0.15s, border 0.12s;
-    }
-    .clear-all-btn:hover {
-      background: #ffdede;
-      color: #a40000;
-    }
-    .filter-checkbox-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15em;
-      max-height: 170px;
-      overflow-y: auto;
-      margin-bottom: 0.5em;
-    }
-    .filter-checkbox-list label {
-      font-size: 0.98em;
-      white-space: nowrap;
-      margin-bottom: 0.1em;
-      display: flex;
-      align-items: center;
-      gap: 0.25em;
-    }
-    .special-checkbox-list label {
-      font-size: 0.98em;
-      margin-bottom: 0.3em;
-      display: flex;
-      align-items: center;
-      gap: 0.25em;
-      font-weight: normal;
-      white-space: nowrap;
-    }
+    .filter-bar { display: flex; flex-direction: row; gap: 2em; align-items: flex-start; background: #f8fafd; border-radius: 10px; border: 1px solid #e2e9f5; padding: 1em 1.2em 0.8em 1.2em; margin-bottom: 1.7em; box-shadow: 0 2px 12px rgba(60,120,200,0.04); }
+    .filter-group { display: flex; flex-direction: column; min-width: 160px; max-height: 250px; margin-right: 0.5em; }
+    .filter-label { font-weight: bold; margin-bottom: 0.5em; font-size: 1.03em; }
+    .filter-btn-row { display: flex; gap: 0.7em; margin-bottom: 0.3em; }
+    .select-all-btn, .clear-all-btn { font-size: 0.97em; border-radius: 5px; padding: 2px 10px; cursor: pointer; width: fit-content; align-self: flex-start; border: 1px solid #b5cde7; background: #eef5fb; color: #2576b6; transition: background 0.15s, border 0.12s; }
+    .select-all-btn:hover, .clear-all-btn:hover { background: #d4eafd; }
+    .clear-all-btn { background: #ffeaea; border: 1px solid #f3cccc; color: #c63d3d; transition: background 0.15s, border 0.12s; }
+    .clear-all-btn:hover { background: #ffdede; color: #a40000; }
+    .filter-checkbox-list { display: flex; flex-direction: column; gap: 0.15em; max-height: 170px; overflow-y: auto; margin-bottom: 0.5em; }
+    .filter-checkbox-list label { font-size: 0.98em; white-space: nowrap; margin-bottom: 0.1em; display: flex; align-items: center; gap: 0.25em; }
+    .special-checkbox-list label { font-size: 0.98em; margin-bottom: 0.3em; display: flex; align-items: center; gap: 0.25em; font-weight: normal; white-space: nowrap; }
     table, #agendaTable { font-size: 0.95rem; }
-    canvas {
-      height: 100% !important;
-      max-width: 100%;
-      display: block;
-      margin: 2rem auto;
-    }
-    .truncate-cell, .attachments-cell {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 250px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    tr.expanded .truncate-cell,
-    tr.expanded .attachments-cell {
-      white-space: normal !important;
-      overflow: visible !important;
-      text-overflow: initial !important;
-      max-width: 600px !important;
-      word-break: break-word;
-      background: #f8f8f8;
-      z-index: 2;
-      position: relative;
-    }
+    canvas { height: 100% !important; max-width: 100%; display: block; margin: 2rem auto; }
+    .truncate-cell, .attachments-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; cursor: pointer; transition: all 0.15s; }
+    tr.expanded .truncate-cell, tr.expanded .attachments-cell { white-space: normal !important; overflow: visible !important; text-overflow: initial !important; max-width: 600px !important; word-break: break-word; background: #f8f8f8; z-index: 2; position: relative; }
     tr.expanded { background: #fafafa !important; }
     .attachments-cell { color: #0073b1; text-decoration: underline; }
     .attachments-list { display: none; margin: 0.4em 0 0 0; padding: 0; }
@@ -195,7 +105,6 @@
 
   <canvas id="voteChart"></canvas>
 
-<!-- Use the robust, shared normalization logic -->
 <script src="js/boarddocs_common.js"></script>
 <script>
 const chunkedFiles = [
@@ -292,9 +201,9 @@ const chunkedFiles = [
           `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
         );
       }
-      // Use shared normalization for category and type (always arrays)
-      const normCats = normalizeCategories(item.category);
-      const normType = normalizeType(item.type);
+      // Defensive: always store normalized arrays, fallback to [] if normalization fails
+      const normCats = Array.isArray(normalizeCategories(item.category)) ? normalizeCategories(item.category) : [];
+      const normType = Array.isArray(normalizeType(item.type)) ? normalizeType(item.type) : [];
 
       items.push({
         year: (meeting.meeting_date || "").slice(0, 4),
@@ -316,12 +225,21 @@ const chunkedFiles = [
   });
   allAgendaItems = items;
 
-  // --- 2. Build atomic filter lists (now truly atomic) ---
-  const allYears = [...new Set(allagendaitems.flatmap(i => i.year))]
+  // --- Debug: confirm allAgendaItems structure ---
+  console.log("Sample type arrays:", allAgendaItems.slice(0, 5).map(i => i.type));
+
+  // --- 2. Build atomic filter lists (defensive) ---
+  const allYears = [...new Set(allAgendaItems.map(i => i.year))]
     .filter(Boolean)
     .sort((a, b) => b.localeCompare(a));
-  const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => i.category));
-  const allTypes = getUniqueSorted(allAgendaItems.flatMap(i => i.type));
+
+  const allCategories = getUniqueSorted(allAgendaItems.flatMap(i =>
+    Array.isArray(i.category) ? i.category : (i.category ? [i.category] : [])
+  ));
+
+  const allTypes = getUniqueSorted(allAgendaItems.flatMap(i =>
+    Array.isArray(i.type) ? i.type : (i.type ? [i.type] : [])
+  ));
 
   activeYearFilters = [...allYears];
   activeCategoryFilters = [...allCategories];
@@ -340,14 +258,8 @@ const chunkedFiles = [
       { data: "meeting_date" },
       { data: "agenda_number" },
       { data: "title" },
-      {
-        data: "category",
-        render: renderArray
-      },
-      {
-        data: "type",
-        render: renderArray
-      },
+      { data: "category", render: renderArray },
+      { data: "type", render: renderArray },
       {
         data: "recommended_action",
         render: function (data, type, row, meta) {
@@ -384,15 +296,10 @@ const chunkedFiles = [
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
     const row = table.row(dataIndex).data();
     if (!row) return true;
-    // Year filter
     if (activeYearFilters.length && !activeYearFilters.includes(row.year)) return false;
-    // Category filter (atomic)
     if (activeCategoryFilters.length && !anyTagMatch(row.category, activeCategoryFilters)) return false;
-    // Type filter (atomic)
     if (activeTypeFilters.length && !anyTagMatch(row.type, activeTypeFilters)) return false;
-    // Exclude items without a vote
     if (excludeNoVote && !row.vote_result) return false;
-    // Only show non-unanimous
     if (onlyNonUnanimous) {
       const yes = Number(row.yes_votes) || 0, no = Number(row.no_votes) || 0, abstain = Number(row.abstain_votes) || 0;
       if (yes && (no === 0 && abstain === 0)) return false;
@@ -450,7 +357,6 @@ const chunkedFiles = [
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // 7. Special filter checkboxes
   $('#excludeNoVote').on('change', function() {
     excludeNoVote = this.checked;
     table.draw();
@@ -462,13 +368,11 @@ const chunkedFiles = [
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // Row expand/collapse logic
   $('#agendaTable tbody').on('click', 'td', function () {
     var $tr = $(this).closest('tr');
     $tr.toggleClass('expanded');
   });
 
-  // Initial chart
   updateChart(table.rows({ filter: 'applied' }).data().toArray());
   table.on('draw', function() {
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
