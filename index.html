@@ -10,12 +10,6 @@
   <style>
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
-    #filters { margin-bottom: 1.5em; font-size: 0.97rem; }
-    #filters label, #filters strong { display: inline-block; margin-right: 1.5em; vertical-align: top; }
-    .checkbox-group label { margin-right: 0.9em; white-space: nowrap; }
-    .checkbox-group { display: inline-block; margin-right: 2.5em; }
-    .filter-bar { margin-bottom: 1em; }
-    #clearFiltersBtn { margin-left: 2em; }
     table, #agendaTable { font-size: 0.95rem; }
     canvas {
       height: 100% !important;
@@ -46,6 +40,34 @@
     .attachments-cell { color: #0073b1; text-decoration: underline; }
     .attachments-list { display: none; margin: 0.4em 0 0 0; padding: 0; }
     tr.expanded .attachments-list { display: block; }
+
+    /* Header Filter Dropdowns */
+    th { position: relative; }
+    .filter-btn { cursor: pointer; font-size: 0.92em; margin-left: 0.3em; user-select: none; }
+    .header-filter {
+      display: none;
+      position: absolute;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+      z-index: 20;
+      max-height: 220px;
+      overflow-y: auto;
+      min-width: 140px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      left: 0;
+      top: 100%;
+    }
+    .header-filter label { display: block; margin: 0 0 2px 0; font-weight: normal; cursor: pointer; }
+    .header-filter input[type=checkbox] { margin-right: 4px; }
+    .header-filter button.select-all-btn {
+      background: #f5f5f5;
+      border: 1px solid #ccc;
+      font-size: 0.95em;
+      padding: 2px 8px;
+      margin-bottom: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -64,21 +86,20 @@
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
 
-  <!-- FILTERS -->
-  <div id="filters" class="filter-bar">
-    <div id="yearCheckboxes" class="checkbox-group"></div>
-    <div id="categoryCheckboxes" class="checkbox-group"></div>
-    <button id="clearFiltersBtn">Clear Filters</button>
-  </div>
-
   <table id="agendaTable" class="display" width="100%">
     <thead>
       <tr>
-        <th>Year</th>
+        <th>
+          Year <span class="filter-btn" data-col="0">🔽</span>
+          <div class="header-filter" data-col="0"></div>
+        </th>
         <th>Date</th>
         <th>Agenda #</th>
         <th>Title</th>
-        <th>Category</th>
+        <th>
+          Category <span class="filter-btn" data-col="4">🔽</span>
+          <div class="header-filter" data-col="4"></div>
+        </th>
         <th>Type</th>
         <th>Recommended Action</th>
         <th>Moved By</th>
@@ -130,94 +151,14 @@ function normalizeCategories(cat) {
   return [...new Set(tags)];
 }
 
-// --- LOAD AND FLATTEN DATA ---
-let allAgendaItems = [];
-let table;
-
-async function loadAllAgendaItems(files) {
-  const meetings = [];
-  for (let file of files) {
-    try {
-      const resp = await fetch(file);
-      const json = await resp.json();
-      meetings.push(...json);
-    } catch (e) {
-      console.error("Failed to load", file, e);
-    }
-  }
-  // Flatten all agenda items
-  const items = [];
-  meetings.forEach(meeting => {
-    (meeting.agenda_items || []).forEach(item => {
-      let yes = 0, no = 0, abstain = 0;
-      let moved_by = "", seconded_by = "";
-      let vote_result = "";
-      if (item.motion_and_voting) {
-        const mv = item.motion_and_voting;
-        vote_result = mv.vote_result || "";
-        moved_by = mv.moved_by || "";
-        seconded_by = mv.seconded_by || "";
-        if (Array.isArray(mv.votes)) {
-          mv.votes.forEach(v => {
-            if (!v || !v.vote) return;
-            if (v.vote === "Yes") yes++;
-            else if (v.vote === "No") no++;
-            else if (v.vote === "Abstain") abstain++;
-          });
-        }
-      }
-      // Clean up attachment links for collapsible UX
-      let attachmentArray = [];
-      if (Array.isArray(item.attachments) && item.attachments.length) {
-        attachmentArray = item.attachments.map(a =>
-          `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
-        );
-      }
-      const normCats = normalizeCategories(item.category);
-      items.push({
-        year: (meeting.meeting_date || "").slice(0, 4),
-        meeting_date: meeting.meeting_date,
-        agenda_number: item.number,
-        title: item.title,
-        category: normCats,
-        type: item.type,
-        recommended_action: item.recommendedAction,
-        moved_by: moved_by,
-        seconded_by: seconded_by,
-        vote_result: vote_result,
-        yes_votes: yes,
-        no_votes: no,
-        abstain_votes: abstain,
-        attachment_links: attachmentArray
-      });
-    });
-  });
-  return items;
+// --- UTIL: Get Unique Values for a DataTable Column ---
+function getColumnUnique(table, colIdx) {
+  return [...new Set(table.column(colIdx).data().toArray().flatMap(x =>
+    Array.isArray(x) ? x : (x || '').toString().split(/,\s*/)
+  ))].filter(Boolean).sort();
 }
 
-// --- POPULATE CHECKBOX FILTERS ---
-function populateCheckboxFilters(data) {
-  const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort((a, b) => b.localeCompare(a)).reverse();
-  const categories = [...new Set(
-    data.flatMap(r => Array.isArray(r.category) ? r.category : [r.category])
-  )].filter(Boolean).sort();
-
-  $('#yearCheckboxes').empty().append('<strong>Filter by Year:</strong> ');
-  years.forEach(y => {
-    $('#yearCheckboxes').append(
-      `<label><input type="checkbox" class="yearFilter" value="${y}" checked> ${y}</label> `
-    );
-  });
-
-  $('#categoryCheckboxes').empty().append('<strong>Filter by Category:</strong> ');
-  categories.forEach(c => {
-    $('#categoryCheckboxes').append(
-      `<label><input type="checkbox" class="categoryFilter" value="${c}" checked> ${c}</label> `
-    );
-  });
-}
-
-// --- VOTE PIE CHART ---
+// --- CHART ---
 function updateChart(data) {
   const result = { Yes: 0, No: 0, Abstain: 0 };
   data.forEach(row => {
@@ -247,14 +188,72 @@ function updateChart(data) {
   });
 }
 
-// --- MAIN INIT ---
-(async function(){
-  allAgendaItems = await loadAllAgendaItems(chunkedFiles);
-  populateCheckboxFilters(allAgendaItems);
+let allAgendaItems = [];
+let table; // global for filters
 
+(async function(){
+  // --- 1. Load and flatten data ---
+  const meetings = [];
+  for (let file of chunkedFiles) {
+    try {
+      const resp = await fetch(file);
+      const json = await resp.json();
+      meetings.push(...json);
+    } catch (e) {
+      console.error("Failed to load", file, e);
+    }
+  }
+  const items = [];
+  meetings.forEach(meeting => {
+    (meeting.agenda_items || []).forEach(item => {
+      let yes = 0, no = 0, abstain = 0;
+      let moved_by = "", seconded_by = "";
+      let vote_result = "";
+      if (item.motion_and_voting) {
+        const mv = item.motion_and_voting;
+        vote_result = mv.vote_result || "";
+        moved_by = mv.moved_by || "";
+        seconded_by = mv.seconded_by || "";
+        if (Array.isArray(mv.votes)) {
+          mv.votes.forEach(v => {
+            if (!v || !v.vote) return;
+            if (v.vote === "Yes") yes++;
+            else if (v.vote === "No") no++;
+            else if (v.vote === "Abstain") abstain++;
+          });
+        }
+      }
+      let attachmentArray = [];
+      if (Array.isArray(item.attachments) && item.attachments.length) {
+        attachmentArray = item.attachments.map(a =>
+          `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
+        );
+      }
+      const normCats = normalizeCategories(item.category);
+      items.push({
+        year: (meeting.meeting_date || "").slice(0, 4),
+        meeting_date: meeting.meeting_date,
+        agenda_number: item.number,
+        title: item.title,
+        category: normCats,
+        type: item.type,
+        recommended_action: item.recommendedAction,
+        moved_by: moved_by,
+        seconded_by: seconded_by,
+        vote_result: vote_result,
+        yes_votes: yes,
+        no_votes: no,
+        abstain_votes: abstain,
+        attachment_links: attachmentArray
+      });
+    });
+  });
+  allAgendaItems = items;
+
+  // --- 2. DataTables Setup ---
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
-    order: [[0, 'desc']], // Year descending by default
+    order: [[0, 'desc']],
     columns: [
       { data: "year" },
       { data: "meeting_date" },
@@ -291,56 +290,87 @@ function updateChart(data) {
               <div class="attachments-list">${data.map(a => `<div>${a}</div>`).join("")}</div>
             </div>`;
           }
-          // for type === 'sort', return a simple string
           return data.length + " attachment" + (data.length === 1 ? "" : "s");
         }
       }
     ]
   });
 
-  updateChart(allAgendaItems);
+  // --- 3. Header Checkbox Filters ---
+  // Build and open filter on header button click
+  $('#agendaTable thead').on('click', '.filter-btn', function(e) {
+    e.stopPropagation();
+    const colIdx = $(this).data('col');
+    const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
+    $('.header-filter').not($filterDiv).hide(); // close other filters
 
-  // --- DataTables instant filtering for Year/Category with checkboxes ---
-  $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-    const selectedYears = $('.yearFilter:checked').map(function() { return this.value; }).get();
-    const selectedCategories = $('.categoryFilter:checked').map(function() { return this.value; }).get();
-    const row = table.row(dataIndex).data();
-    const rowYear = row.year || '';
-    const rowCats = Array.isArray(row.category) ? row.category : [row.category];
-
-    if (selectedYears.length && !selectedYears.includes(rowYear)) return false;
-    if (selectedCategories.length && !rowCats.some(cat => selectedCategories.includes(cat))) return false;
-    return true;
+    // Only build if empty or after table draw
+    if (!$filterDiv.data('built') || $filterDiv.children().length === 0) {
+      const vals = getColumnUnique(table, colIdx);
+      $filterDiv.empty();
+      $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
+      vals.forEach(v => {
+        $filterDiv.append(
+          `<label><input type="checkbox" value="${v}" checked> ${v}</label>`
+        );
+      });
+      $filterDiv.data('built', true);
+    }
+    $filterDiv.toggle();
   });
 
-  // --- Checkbox Filter Event Listeners ---
-  $(document).on('change', '.yearFilter, .categoryFilter', function() {
-    table.draw();
+  // Hide filters on outside click
+  $(document).on('click', function() {
+    $('.header-filter').hide();
+  });
+
+  // Select all button
+  $('#agendaTable thead').on('click', '.select-all-btn', function(e) {
+    e.stopPropagation();
+    $(this).parent().find('input[type=checkbox]').prop('checked', true).trigger('change');
+  });
+
+  // Column filter logic
+  let activeFilters = { 0: null, 4: null }; // Year = 0, Category = 4
+  $('#agendaTable thead').on('change', '.header-filter input[type=checkbox]', function(e) {
+    e.stopPropagation();
+    const $filterDiv = $(this).closest('.header-filter');
+    const colIdx = parseInt($filterDiv.data('col'));
+    const checked = $filterDiv.find('input[type=checkbox]:checked').map(function() {
+      return this.value;
+    }).get();
+    if (checked.length === 0) {
+      // No values checked, match nothing
+      activeFilters[colIdx] = '^$a'; // regex that never matches
+    } else {
+      // Build regex string for DataTables filter
+      activeFilters[colIdx] = `^(${checked.map(x => $.fn.dataTable.util.escapeRegex(x)).join('|')})$`;
+    }
+    table.column(colIdx).search(activeFilters[colIdx] || '', true, false).draw();
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // --- Clear Filters: check all boxes and trigger update ---
-  $('#clearFiltersBtn').on('click', function() {
-    $('.yearFilter, .categoryFilter').prop('checked', true);
-    table.draw();
+  // Reset filters on table draw (so that filter reflects current data)
+  table.on('draw', function() {
+    [0, 4].forEach(colIdx => {
+      const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
+      $filterDiv.data('built', false);
+      // Optionally: auto-hide on draw
+      $filterDiv.hide();
+    });
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
+    $('#agendaTable tbody tr').removeClass('expanded');
   });
 
-  // Row expand/collapse for recommended_action and attachments
+  // --- Expand/collapse logic ---
   $('#agendaTable tbody').on('click', 'td', function () {
     var $tr = $(this).closest('tr');
     $tr.toggleClass('expanded');
   });
 
-  // Initial chart update on visible data
+  // --- Initial chart ---
   updateChart(table.rows({ filter: 'applied' }).data().toArray());
 
-  // Update chart on every table draw (filters applied)
-  table.on('draw', function() {
-    updateChart(table.rows({ filter: 'applied' }).data().toArray());
-    // Optionally auto-collapse expanded rows on new filter:
-    $('#agendaTable tbody tr').removeClass('expanded');
-  });
 })();
 </script>
 
