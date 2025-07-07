@@ -340,6 +340,7 @@ function updateChart(data) {
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
     order: [[0, 'desc']],
+    pageLength: 25,         // <--- Set your preferred default here!
     columns: [
       { data: "year" },
       { data: "meeting_date" },
