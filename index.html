@@ -43,7 +43,32 @@
 
     /* Header Filter Dropdowns */
     th { position: relative; }
-    .filter-btn { cursor: pointer; font-size: 0.92em; margin-left: 0.3em; user-select: none; }
+    .filter-btn {
+  display: inline-block;
+  cursor: pointer;
+  font-size: 1.18em;
+  margin-left: 0.7em;
+  padding: 1px 7px 1px 7px;
+  border-radius: 5px;
+  background: #eef5fb;
+  border: 1px solid #b5cde7;
+  color: #2576b6;
+  box-shadow: 0 1px 3px rgba(80,120,200,0.06);
+  transition: background 0.15s, border 0.12s;
+  vertical-align: middle;
+  position: relative;
+}
+.filter-btn:hover, .filter-btn:focus {
+  background: #d4eafd;
+  border: 1.5px solid #2587d2;
+  outline: none;
+}
+
+.filter-btn:active {
+  background: #b2d6f8;
+}
+
+   
     .header-filter {
       display: none;
       position: absolute;
