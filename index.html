@@ -11,16 +11,11 @@
     body { font-family: sans-serif; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
     #filters { margin-bottom: 1.5em; font-size: 0.97rem; }
-    #filters label { display: inline-block; margin-right: 1.5em; vertical-align: top; }
-    select[multiple] {
-      min-width: 170px;
-      min-height: 7em;
-      background: #fafcff;
-      border: 1px solid #ddd;
-      font-size: 0.95rem;
-      margin-right: 1em;
-      margin-bottom: 0.6em;
-    }
+    #filters label, #filters strong { display: inline-block; margin-right: 1.5em; vertical-align: top; }
+    .checkbox-group label { margin-right: 0.9em; white-space: nowrap; }
+    .checkbox-group { display: inline-block; margin-right: 2.5em; }
+    .filter-bar { margin-bottom: 1em; }
+    #clearFiltersBtn { margin-left: 2em; }
     table, #agendaTable { font-size: 0.95rem; }
     canvas {
       height: 100% !important;
@@ -69,13 +64,10 @@
     document.title = document.querySelector("h1")?.innerText || "AF BoardDocs Dash";
   </script>
 
-  <div id="filters">
-    <label>Filter by Year:
-      <select id="yearFilter" multiple></select>
-    </label>
-    <label>Filter by Category:
-      <select id="categoryFilter" multiple></select>
-    </label>
+  <!-- FILTERS -->
+  <div id="filters" class="filter-bar">
+    <div id="yearCheckboxes" class="checkbox-group"></div>
+    <div id="categoryCheckboxes" class="checkbox-group"></div>
     <button id="clearFiltersBtn">Clear Filters</button>
   </div>
 
@@ -203,22 +195,26 @@ async function loadAllAgendaItems(files) {
   return items;
 }
 
-// --- POPULATE FILTER SELECTS (descending year order) ---
-function populateFilters(data) {
-  const years = [...new Set(data.map(r => r.year))]
-    .filter(Boolean)
-    .sort((a, b) => b.localeCompare(a)); // descending order
+// --- POPULATE CHECKBOX FILTERS ---
+function populateCheckboxFilters(data) {
+  const years = [...new Set(data.map(r => r.year))].filter(Boolean).sort((a, b) => b.localeCompare(a)).reverse();
   const categories = [...new Set(
     data.flatMap(r => Array.isArray(r.category) ? r.category : [r.category])
   )].filter(Boolean).sort();
-  $('#yearFilter').empty();
-  $('#categoryFilter').empty();
-  for (const y of years) {
-    $('#yearFilter').append(`<option value="${y}">${y}</option>`);
-  }
-  for (const c of categories) {
-    $('#categoryFilter').append(`<option value="${c}">${c}</option>`);
-  }
+
+  $('#yearCheckboxes').empty().append('<strong>Filter by Year:</strong> ');
+  years.forEach(y => {
+    $('#yearCheckboxes').append(
+      `<label><input type="checkbox" class="yearFilter" value="${y}" checked> ${y}</label> `
+    );
+  });
+
+  $('#categoryCheckboxes').empty().append('<strong>Filter by Category:</strong> ');
+  categories.forEach(c => {
+    $('#categoryCheckboxes').append(
+      `<label><input type="checkbox" class="categoryFilter" value="${c}" checked> ${c}</label> `
+    );
+  });
 }
 
 // --- VOTE PIE CHART ---
@@ -251,9 +247,10 @@ function updateChart(data) {
   });
 }
 
+// --- MAIN INIT ---
 (async function(){
   allAgendaItems = await loadAllAgendaItems(chunkedFiles);
-  populateFilters(allAgendaItems);
+  populateCheckboxFilters(allAgendaItems);
 
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
@@ -303,33 +300,28 @@ function updateChart(data) {
 
   updateChart(allAgendaItems);
 
-  // --- DataTables instant filtering for Year/Category ---
+  // --- DataTables instant filtering for Year/Category with checkboxes ---
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-    const selectedYears = ($('#yearFilter').val() || []);
-    const selectedCategories = ($('#categoryFilter').val() || []);
+    const selectedYears = $('.yearFilter:checked').map(function() { return this.value; }).get();
+    const selectedCategories = $('.categoryFilter:checked').map(function() { return this.value; }).get();
     const row = table.row(dataIndex).data();
     const rowYear = row.year || '';
     const rowCats = Array.isArray(row.category) ? row.category : [row.category];
-    // If any year/category selected, must match; else match all
-    if (selectedYears.length && !selectedYears.includes(rowYear)) {
-      return false;
-    }
-    if (selectedCategories.length && !rowCats.some(cat => selectedCategories.includes(cat))) {
-      return false;
-    }
+
+    if (selectedYears.length && !selectedYears.includes(rowYear)) return false;
+    if (selectedCategories.length && !rowCats.some(cat => selectedCategories.includes(cat))) return false;
     return true;
   });
 
-  // Apply filters instantly on change, always update chart
-  $('#yearFilter, #categoryFilter').on('change input', function () {
-  table.draw();
-  updateChart(table.rows({ filter: 'applied' }).data().toArray());
-});
+  // --- Checkbox Filter Event Listeners ---
+  $(document).on('change', '.yearFilter, .categoryFilter', function() {
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
+  });
 
-  // Clear filters and update chart
+  // --- Clear Filters: check all boxes and trigger update ---
   $('#clearFiltersBtn').on('click', function() {
-    $('#yearFilter').val([]).trigger('change');
-    $('#categoryFilter').val([]).trigger('change');
+    $('.yearFilter, .categoryFilter').prop('checked', true);
     table.draw();
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
@@ -346,6 +338,8 @@ function updateChart(data) {
   // Update chart on every table draw (filters applied)
   table.on('draw', function() {
     updateChart(table.rows({ filter: 'applied' }).data().toArray());
+    // Optionally auto-collapse expanded rows on new filter:
+    $('#agendaTable tbody tr').removeClass('expanded');
   });
 })();
 </script>
