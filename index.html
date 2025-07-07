@@ -195,86 +195,29 @@
 
   <canvas id="voteChart"></canvas>
 
+<!-- Include your robust, shared normalization logic -->
+<script src="js/boarddocs_common.js"></script>
 <script>
 const chunkedFiles = [
   "data/master_2013to2024_cleaned.json",
   "data/2025_cleaned.json"
 ];
 
-let mapping = {};
-
-// Async wrapper for all logic
+// Async IIFE for all main logic
 (async function(){
-  // --- Load mapping file first ---
-  try {
-    const mapResp = await fetch('data/mapping.json');
-    mapping = await mapResp.json();
-  } catch (e) {
-    mapping = {};
-    console.error("Could not load mapping.json:", e);
-  }
+  // --- Load shared mapping logic ---
+  await loadMapping();
 
-  // --- Normalization functions using mapping ---
-  function normalizeCategories(cat) {
-    if (!cat) return ["Other"];
-    if (mapping.category && typeof mapping.category[cat] === 'string' && mapping.category[cat].trim() !== "") {
-      return [mapping.category[cat]];
-    }
-    // fallback: legacy regex/logic if mapping not found
-    cat = cat.replace(/^\d+\.*\s*-*\s*/g, '').toLowerCase().trim();
-    const map = [
-      { tag: "Call to Order", regex: /call to order/ },
-      { tag: "Pledge of Allegiance", regex: /pledge of allegiance/ },
-      { tag: "Information", regex: /information|discussion|presentation|informational/ },
-      { tag: "Recognition/Celebration", regex: /recognition|recognize|celebration|presentations? and celebrations?/ },
-      { tag: "Call to the Public", regex: /call to the public|public comments?/ },
-      { tag: "Approval of Minutes", regex: /approval of minutes|meeting minutes|minutes/ },
-      { tag: "Action Items", regex: /action items?/ },
-      { tag: "Consent Agenda Items", regex: /consent agenda/ },
-      { tag: "Future Agenda Items", regex: /future agenda/ },
-      { tag: "Return to Regular Session", regex: /return to regular session|reconvene|resturn to regular session|reconvene regular board meeting|reconvene meeting|reconvene the regular board meeting|reconvene to regular session/ },
-      { tag: "Adjournment", regex: /adjourn(ment)?|adjourn excutive session|adjourn exutive session|adjourn excutiv(e)? session/ },
-      { tag: "Executive Session", regex: /executive session|executive sesssion|excutive session|exective session/ },
-      { tag: "Public Hearing", regex: /public hearing/ },
-      { tag: "Recognitions", regex: /recognitions?/ },
-      { tag: "Oath of Office/Election of Governing Board Officers", regex: /oath of office|election of governing board officers|nomination|nominations and election|election of governing board officers for/ },
-      { tag: "Board Advisory Committee", regex: /advisory committee/ }
-    ];
-    const tags = [];
-    for (let m of map) {
-      if (cat.match(m.regex)) tags.push(m.tag);
-    }
-    if (tags.length === 0) tags.push("Other");
-    return [...new Set(tags)];
-  }
-
-  function normalizeType(type) {
-    if (!type) return null;
-    if (mapping.agenda_item_type && mapping.agenda_item_type[type]) {
-      const arr = mapping.agenda_item_type[type];
-      // Return as string if one value, else array (adapt to your table as needed)
-      if (Array.isArray(arr)) {
-        return arr.length === 1 ? arr[0] : arr;
-      }
-      return arr;
-    }
-    // fallback: original logic
-    type = type.trim().toLowerCase();
-    if (type === "procedural" || type === "procedure") return "Procedural";
-    if (type === "action" || type === "action item" || type === "action items") return "Action";
-    if (type === "informational" || type === "information") return "Informational";
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  }
-
+  // Variables
   let allAgendaItems = [];
-  let table; // global for filters
-
+  let table;
   let activeYearFilters = [];
   let activeCategoryFilters = [];
   let activeTypeFilters = [];
   let excludeNoVote = false;
   let onlyNonUnanimous = false;
 
+  // Helper: Render checkboxes
   function renderFilterCheckboxes(values, containerId, activeValues) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
@@ -287,11 +230,7 @@ let mapping = {};
     });
   }
 
-  function updateTableFilter() {
-    table.draw();
-    updateChart(table.rows({ filter: 'applied' }).data().toArray());
-  }
-
+  // Chart update function
   function updateChart(data) {
     const result = { Yes: 0, No: 0, Abstain: 0 };
     data.forEach(row => {
@@ -321,7 +260,7 @@ let mapping = {};
     });
   }
 
-  // 1. Load and flatten data
+  // --- 1. Load and flatten data ---
   const meetings = [];
   for (let file of chunkedFiles) {
     try {
@@ -358,14 +297,17 @@ let mapping = {};
           `<a href="${a.url}" target="_blank">${a.filename || a.label || "File"}</a>`
         );
       }
+      // Use shared normalization for category and type (always arrays)
       const normCats = normalizeCategories(item.category);
+      const normType = normalizeType(item.type);
+
       items.push({
         year: (meeting.meeting_date || "").slice(0, 4),
         meeting_date: meeting.meeting_date,
         agenda_number: item.number,
         title: item.title,
         category: normCats,
-        type: normalizeType(item.type),
+        type: normType,
         recommended_action: item.recommendedAction,
         moved_by: moved_by,
         seconded_by: seconded_by,
@@ -379,17 +321,12 @@ let mapping = {};
   });
   allAgendaItems = items;
 
-  // 2. Build filter lists
-  // Years: descending order
+  // --- 2. Build atomic filter lists (unique atomic values only) ---
   const allYears = [...new Set(allAgendaItems.map(i => i.year))]
     .filter(Boolean)
     .sort((a, b) => b.localeCompare(a));
-  const allCategories = [...new Set(allAgendaItems.flatMap(i => Array.isArray(i.category) ? i.category : [i.category]))]
-    .filter(Boolean)
-    .sort();
-  const allTypes = [...new Set(allAgendaItems.map(i => normalizeType(i.type)))]
-    .filter(Boolean)
-    .sort();
+  const allCategories = getUniqueSorted(allAgendaItems.map(i => i.category));
+  const allTypes = getUniqueSorted(allAgendaItems.map(i => i.type));
 
   activeYearFilters = [...allYears];
   activeCategoryFilters = [...allCategories];
@@ -398,11 +335,11 @@ let mapping = {};
   renderFilterCheckboxes(allCategories, "categoryCheckboxList", activeCategoryFilters);
   renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
 
-  // 3. DataTable setup (all columns sortable)
+  // --- 3. DataTable setup ---
   table = $('#agendaTable').DataTable({
     data: allAgendaItems,
     order: [[0, 'desc']],
-    pageLength: 25, // Show 25 rows by default
+    pageLength: 25,
     columns: [
       { data: "year" },
       { data: "meeting_date" },
@@ -410,9 +347,12 @@ let mapping = {};
       { data: "title" },
       {
         data: "category",
-        render: cats => Array.isArray(cats) ? cats.join(", ") : cats
+        render: renderArray
       },
-      { data: "type" },
+      {
+        data: "type",
+        render: renderArray
+      },
       {
         data: "recommended_action",
         render: function (data, type, row, meta) {
@@ -445,17 +385,16 @@ let mapping = {};
     ]
   });
 
-  // 4. DataTables filter hook
+  // --- 4. DataTables filter hook (now array/tag aware) ---
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
     const row = table.row(dataIndex).data();
     if (!row) return true;
     // Year filter
     if (activeYearFilters.length && !activeYearFilters.includes(row.year)) return false;
-    // Category filter
-    const rowCats = Array.isArray(row.category) ? row.category : [row.category];
-    if (activeCategoryFilters.length && !rowCats.some(cat => activeCategoryFilters.includes(cat))) return false;
-    // Type filter
-    if (activeTypeFilters.length && !activeTypeFilters.includes(row.type)) return false;
+    // Category filter (atomic)
+    if (activeCategoryFilters.length && !anyTagMatch(row.category, activeCategoryFilters)) return false;
+    // Type filter (atomic)
+    if (activeTypeFilters.length && !anyTagMatch(row.type, activeTypeFilters)) return false;
     // Exclude items without a vote
     if (excludeNoVote && !row.vote_result) return false;
     // Only show non-unanimous
@@ -466,21 +405,24 @@ let mapping = {};
     return true;
   });
 
-  // 5. Listen for year/category/type filter changes
+  // --- 5. Listen for filter changes ---
   $(document).on('change', '#yearCheckboxList input[type=checkbox]', function() {
     activeYearFilters = $('#yearCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
   $(document).on('change', '#categoryCheckboxList input[type=checkbox]', function() {
     activeCategoryFilters = $('#categoryCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
   $(document).on('change', '#typeCheckboxList input[type=checkbox]', function() {
     activeTypeFilters = $('#typeCheckboxList input[type=checkbox]:checked').map(function() { return this.value; }).get();
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // 6. "Select All" buttons
+  // 6. "Select All" and "Clear All" buttons
   $(document).on('click', '.select-all-btn', function() {
     const type = $(this).data('filter');
     if (type === "year") {
@@ -493,10 +435,10 @@ let mapping = {};
       activeTypeFilters = [...allTypes];
       renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
     }
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // 7. "Clear All" buttons
   $(document).on('click', '.clear-all-btn', function() {
     const type = $(this).data('filter');
     if (type === "year") {
@@ -509,17 +451,20 @@ let mapping = {};
       activeTypeFilters = [];
       renderFilterCheckboxes(allTypes, "typeCheckboxList", activeTypeFilters);
     }
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
-  // 8. Special filter checkboxes
+  // 7. Special filter checkboxes
   $('#excludeNoVote').on('change', function() {
     excludeNoVote = this.checked;
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
   $('#onlyNonUnanimous').on('change', function() {
     onlyNonUnanimous = this.checked;
-    updateTableFilter();
+    table.draw();
+    updateChart(table.rows({ filter: 'applied' }).data().toArray());
   });
 
   // Row expand/collapse logic
