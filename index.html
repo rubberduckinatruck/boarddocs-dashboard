@@ -305,19 +305,37 @@ let table; // global for filters
     $('.header-filter').not($filterDiv).hide(); // close other filters
 
     // Only build if empty or after table draw
-    if (!$filterDiv.data('built') || $filterDiv.children().length === 0) {
-      const vals = getColumnUnique(table, colIdx);
-      $filterDiv.empty();
-      $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
-      vals.forEach(v => {
-        $filterDiv.append(
-          `<label><input type="checkbox" value="${v}" checked> ${v}</label>`
-        );
-      });
-      $filterDiv.data('built', true);
-    }
-    $filterDiv.toggle();
+$('#agendaTable thead').on('click', '.filter-btn', function(e) {
+  e.stopPropagation();
+  const colIdx = $(this).data('col');
+  const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
+  $('.header-filter').not($filterDiv).hide(); // close other filters
+
+  const vals = getColumnUnique(table, colIdx);
+
+  // Determine checked values from activeFilters
+  let checkedValues;
+  if (activeFilters[colIdx] && activeFilters[colIdx] !== '^$a') {
+    checkedValues = activeFilters[colIdx]
+      .replace(/^\^\((.*)\)\$$/, '$1')
+      .split('|')
+      .map(s => s.replace(/\\([|.^$?*+()[\]{}])/g, '$1')); // unescape regex
+  } else {
+    checkedValues = vals; // all checked
+  }
+
+  $filterDiv.empty();
+  $filterDiv.append('<button type="button" class="select-all-btn">Select All</button>');
+  vals.forEach(v => {
+    const checked = checkedValues.includes(v) ? 'checked' : '';
+    $filterDiv.append(
+      `<label><input type="checkbox" value="${v}" ${checked}> ${v}</label>`
+    );
   });
+  $filterDiv.data('built', true);
+  $filterDiv.toggle();
+});
+
 
  // Only hide if click is NOT inside a header-filter
 $(document).on('mousedown', function(e) {
