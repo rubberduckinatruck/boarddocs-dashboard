@@ -1,0 +1,51 @@
+{
+  "agenda_item_type": {
+    "Procedural": ["Procedural"],
+    "Action": ["Action"],
+    "Action (Consent)": ["Action (Consent)"],
+    "Information": ["Information"],
+    "Discussion": ["Discussion"],
+    "Presentation": ["Presentation"],
+    "Information, Presentation": ["Information", "Presentation"],
+    "Discussion, Presentation": ["Discussion", "Presentation"],
+    "Discussion, Information": ["Discussion", "Information"],
+    "Action, Discussion": ["Action", "Discussion"],
+    "Information, Discussion": ["Information", "Discussion"],
+    "": [],
+    null: []
+  },
+  "category": {
+    "1. CALL TO ORDER": "Call to Order",
+    "2. PLEDGE OF ALLEGIANCE": "Pledge of Allegiance",
+    "3. OATH OF OFFICE": "Oath of Office",
+    "4. ELECTION OF GOVERNING BOARD OFFICERS FOR 2025": "Election of Governing Board Officers",
+    "5. PRESENTATIONS AND RECOGNITIONS": "Presentations and Recognitions",
+    "6. CALL TO THE PUBLIC": "Call to the Public",
+    "7. APPROVAL OF MINUTES": "Approval of Minutes",
+    "8. ACTION ITEMS": "Action Items",
+    "9. CONSENT AGENDA ITEMS": "Consent Agenda",
+    "10. INFORMATION": "Information",
+    "11. FUTURE AGENDA ITEMS": "Future Agenda Items",
+    "12. ADJOURNMENT": "Adjournment",
+    "3. WELCOME AND INTRODUCTION": "Welcome and Introduction",
+    "4. PUBLIC HEARING": "Public Hearing",
+    "5. INFORMATION": "Information",
+    "10. EXECUTIVE SESSION": "Executive Session",
+    "": "",
+    null: ""
+  },
+  "meeting_type": {
+    "Regular Board Meeting": ["Regular Board Meeting"],
+    "Organizational": ["Organizational"],
+    "Annual Board Retreat": ["Annual Board Retreat"],
+    "Study Session": ["Study Session"],
+    "Executive Session": ["Executive Session"],
+    "Public Hearing": ["Public Hearing"],
+    "Regular Board Meeting, Public Hearing": ["Regular Board Meeting", "Public Hearing"],
+    "Annual Board Retreat/Study Session": ["Annual Board Retreat", "Study Session"],
+    "Regular Board Meeting and Executive Session": ["Regular Board Meeting", "Executive Session"],
+    "Regular Board Meeting, Executive Session": ["Regular Board Meeting", "Executive Session"],
+    "": [],
+    null: []
+  }
+}
