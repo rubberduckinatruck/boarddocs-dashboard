@@ -44,44 +44,45 @@
     /* Header Filter Dropdowns */
     th { position: relative; }
     .filter-btn {
-  display: inline-block;
-  cursor: pointer;
-  font-size: 1.18em;
-  margin-left: 0.7em;
-  padding: 1px 7px 1px 7px;
-  border-radius: 5px;
-  background: #eef5fb;
-  border: 1px solid #b5cde7;
-  color: #2576b6;
-  box-shadow: 0 1px 3px rgba(80,120,200,0.06);
-  transition: background 0.15s, border 0.12s;
-  vertical-align: middle;
-  position: relative;
-}
-.filter-btn:hover, .filter-btn:focus {
-  background: #d4eafd;
-  border: 1.5px solid #2587d2;
-  outline: none;
-}
+      display: inline-block;
+      cursor: pointer;
+      font-size: 1.18em;
+      padding: 1px 7px 1px 7px;
+      border-radius: 5px;
+      background: #eef5fb;
+      border: 1px solid #b5cde7;
+      color: #2576b6;
+      box-shadow: 0 1px 3px rgba(80,120,200,0.06);
+      transition: background 0.15s, border 0.12s;
+      vertical-align: middle;
+      position: absolute;
+      right: 8px;
+      top: 3px;
+      z-index: 21;
+    }
+    .filter-btn:hover, .filter-btn:focus {
+      background: #d4eafd;
+      border: 1.5px solid #2587d2;
+      outline: none;
+    }
+    .filter-btn:active {
+      background: #b2d6f8;
+    }
 
-.filter-btn:active {
-  background: #b2d6f8;
-}
-
-   
     .header-filter {
       display: none;
       position: absolute;
       background: #fff;
       border: 1px solid #ccc;
       padding: 8px 12px;
-      z-index: 20;
+      z-index: 22;
       max-height: 220px;
       overflow-y: auto;
       min-width: 140px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      left: 0;
-      top: 100%;
+      left: auto;
+      right: 0;
+      top: 120%;
     }
     .header-filter label { display: block; margin: 0 0 2px 0; font-weight: normal; cursor: pointer; }
     .header-filter input[type=checkbox] { margin-right: 4px; }
@@ -117,15 +118,17 @@
   <table id="agendaTable" class="display" width="100%">
     <thead>
       <tr>
-        <th>
-          Year <span class="filter-btn" data-col="0">🔽</span>
+        <th style="position: relative;">
+          Year
+          <span class="filter-btn" data-col="0" title="Filter Year">🜜</span>
           <div class="header-filter" data-col="0"></div>
         </th>
         <th>Date</th>
         <th>Agenda #</th>
         <th>Title</th>
-        <th>
-          Category <span class="filter-btn" data-col="4">🔽</span>
+        <th style="position: relative;">
+          Category
+          <span class="filter-btn" data-col="4" title="Filter Category">🜜</span>
           <div class="header-filter" data-col="4"></div>
         </th>
         <th>Type</th>
@@ -286,12 +289,13 @@ let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
     data: allAgendaItems,
     order: [[0, 'desc']],
     columns: [
-      { data: "year" },
+      { data: "year", orderable: false }, // disable sorting for year
       { data: "meeting_date" },
       { data: "agenda_number" },
       { data: "title" },
       {
         data: "category",
+        orderable: false, // disable sorting for category
         render: cats => Array.isArray(cats) ? cats.join(", ") : cats
       },
       { data: "type" },
@@ -348,8 +352,8 @@ let activeFilterValues = { 0: null, 4: null }; // Column 0 (Year), 4 (Category)
 
   // --- 4. Build filter dropdowns on click, with current state ---
   $('#agendaTable thead').on('click', '.filter-btn', function(e) {
+    e.preventDefault();
     e.stopPropagation();
-     e.preventDefault();
     const colIdx = $(this).data('col');
     const $filterDiv = $(`.header-filter[data-col=${colIdx}]`);
     $('.header-filter').not($filterDiv).hide(); // close others
