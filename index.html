@@ -321,10 +321,10 @@ function updateChart(data) {
   });
 
   // Apply filters instantly on change, always update chart
-  $('#yearFilter, #categoryFilter').on('change', function () {
-    table.draw();
-    updateChart(table.rows({ filter: 'applied' }).data().toArray());
-  });
+  $('#yearFilter, #categoryFilter').on('change input', function () {
+  table.draw();
+  updateChart(table.rows({ filter: 'applied' }).data().toArray());
+});
 
   // Clear filters and update chart
   $('#clearFiltersBtn').on('click', function() {
