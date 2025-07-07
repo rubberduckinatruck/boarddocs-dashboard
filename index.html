@@ -195,7 +195,7 @@
 
   <canvas id="voteChart"></canvas>
 
-<!-- Include your robust, shared normalization logic -->
+<!-- Use the robust, shared normalization logic -->
 <script src="js/boarddocs_common.js"></script>
 <script>
 const chunkedFiles = [
@@ -203,12 +203,9 @@ const chunkedFiles = [
   "data/2025_cleaned.json"
 ];
 
-// Async IIFE for all main logic
 (async function(){
-  // --- Load shared mapping logic ---
   await loadMapping();
 
-  // Variables
   let allAgendaItems = [];
   let table;
   let activeYearFilters = [];
@@ -217,7 +214,6 @@ const chunkedFiles = [
   let excludeNoVote = false;
   let onlyNonUnanimous = false;
 
-  // Helper: Render checkboxes
   function renderFilterCheckboxes(values, containerId, activeValues) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
@@ -230,7 +226,6 @@ const chunkedFiles = [
     });
   }
 
-  // Chart update function
   function updateChart(data) {
     const result = { Yes: 0, No: 0, Abstain: 0 };
     data.forEach(row => {
@@ -321,12 +316,12 @@ const chunkedFiles = [
   });
   allAgendaItems = items;
 
-  // --- 2. Build atomic filter lists (unique atomic values only) ---
+  // --- 2. Build atomic filter lists (now truly atomic) ---
   const allYears = [...new Set(allAgendaItems.map(i => i.year))]
     .filter(Boolean)
     .sort((a, b) => b.localeCompare(a));
-  const allCategories = getUniqueSorted(allAgendaItems.map(i => i.category));
-  const allTypes = getUniqueSorted(allAgendaItems.map(i => i.type));
+  const allCategories = getUniqueSorted(allAgendaItems.flatMap(i => i.category));
+  const allTypes = getUniqueSorted(allAgendaItems.flatMap(i => i.type));
 
   activeYearFilters = [...allYears];
   activeCategoryFilters = [...allCategories];
@@ -385,7 +380,7 @@ const chunkedFiles = [
     ]
   });
 
-  // --- 4. DataTables filter hook (now array/tag aware) ---
+  // --- 4. DataTables filter hook (array/tag aware) ---
   $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
     const row = table.row(dataIndex).data();
     if (!row) return true;
